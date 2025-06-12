@@ -1,0 +1,54 @@
+# Go build artifacts
+/bin/
+/build/
+/dist/
+*.exe
+*.test
+*.out
+
+# Go workspace and cache
+*.log
+*.tmp
+*.swp
+*.DS_Store
+
+# Dependency directories
+vendor/
+
+# IDE/editor specific
+.vscode/
+.idea/
+*.code-workspace
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# Env files (always keep secrets out of git)
+.env
+
+# Swagger auto-generated docs
+api/docs/*.go
+api/docs/swagger.json
+api/docs/swagger.yaml
+
+# PostgreSQL/SQLite/Redis artifacts
+*.db
+*.sqlite
+*.rdb
+*.aof
+dump.rdb
+
+# Docker
+*.pid
+*.sock
+docker-compose.override.yml
+
+# Misc
+coverage.out
+*.pem
+*.key
+
+# CI/Secrets
+.github/secrets.yml
+secrets.yaml
