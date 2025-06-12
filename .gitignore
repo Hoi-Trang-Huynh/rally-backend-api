@@ -52,3 +52,7 @@ coverage.out
 # CI/Secrets
 .github/secrets.yml
 secrets.yaml
+
+# Air
+/tmp/
+build.log

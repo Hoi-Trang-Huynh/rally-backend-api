@@ -6,3 +6,6 @@ swag:
 
 lint:
 	golangci-lint run
+
+dev:
+	air
