@@ -1,10 +1,10 @@
 package router
 
 import (
-	_ "github.com/Hoi-Trang-Huynh/rally-backend/api/docs" // docs package
-	"github.com/Hoi-Trang-Huynh/rally-backend/internal/config"
-	"github.com/Hoi-Trang-Huynh/rally-backend/internal/handler"
-	"github.com/Hoi-Trang-Huynh/rally-backend/internal/middleware"
+	_ "github.com/Hoi-Trang-Huynh/rally-backend-api/api/docs" // docs package
+	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/config"
+	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/handler"
+	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/middleware"
 	"github.com/gofiber/fiber/v2"
 	fiberSwagger "github.com/swaggo/fiber-swagger" // swagger handler
 )
