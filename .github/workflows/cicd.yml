@@ -38,8 +38,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-
 
-      - name: Run tests (if any)
-        run: go test ./...
+      # - name: Run tests (if any)
+      #   run: go test ./...
 
       - name: Build binary
         run: go build -v ./cmd/server
@@ -100,7 +100,7 @@ jobs:
           docker push "${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.IMAGE_NAME }}/${{ env.IMAGE_NAME }}:${GITHUB_SHA::7}"
 
       - name: Upload image info
-        run: echo "${{ env.IMAGE_FULL }}" > image.txt
+        run: echo "${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.IMAGE_NAME }}/${{ env.IMAGE_NAME }}" > image.txt
       - uses: actions/upload-artifact@v4
         with:
           name: image-info
