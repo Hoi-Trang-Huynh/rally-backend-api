@@ -1,22 +1,21 @@
-name: CI - Build and Push to GAR
+name: CI Rally Backend API
 on:
   push:
     branches: [ "master" ]
   pull_request:
     branches: [ "master" ]
-  workflow_dispatch:          # allow manual run
-
+  workflow_dispatch:
 
 env:
   IMAGE_NAME: rally-backend-api
   GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
   GCP_REGION: ${{ secrets.GCP_REGION }}
   GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  SERVICE_NAME: rally-backend-api
 
 jobs:
-  build-and-push:
+  build-push-deploy:
     runs-on: ubuntu-latest
-
     permissions:
       contents: read
       id-token: write
@@ -43,7 +42,7 @@ jobs:
       - name: Set up Google Cloud authentication
         uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{env.GCP_SA_KEY}}
+          credentials_json: ${{ env.GCP_SA_KEY }}
 
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev --quiet
@@ -55,7 +54,29 @@ jobs:
           docker build -t "$IMAGE:latest" -t "$IMAGE:$TAG" .
           echo "IMAGE_FULL=$IMAGE:$TAG" >> $GITHUB_ENV
 
+      - name: Ensure GAR repository exists
+        run: |
+          gcloud artifacts repositories describe ${{ env.IMAGE_NAME }} \
+            --location=${{ env.GCP_REGION }} \
+            --project=${{ env.GCP_PROJECT_ID }} \
+            || gcloud artifacts repositories create ${{ env.IMAGE_NAME }} \
+            --repository-format=docker \
+            --location=${{ env.GCP_REGION }} \
+            --description="Docker repository for ${{ env.IMAGE_NAME }} images"
+
       - name: Push Docker image
         run: |
           docker push "${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.IMAGE_NAME }}/${{ env.IMAGE_NAME }}:latest"
           docker push "${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.IMAGE_NAME }}/${{ env.IMAGE_NAME }}:${GITHUB_SHA::7}"
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy ${{ env.SERVICE_NAME }} \
+            --image="${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.IMAGE_NAME }}/${{ env.IMAGE_NAME }}" \
+            --region=${{ env.GCP_REGION }} \
+            --project=${{ env.GCP_PROJECT_ID }} \
+            --platform=managed \
+            --allow-unauthenticated \
+            --port=8080 \
+            --memory=512Mi \
+            --max-instances=5
