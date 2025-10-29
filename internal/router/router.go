@@ -15,13 +15,18 @@ func Setup(cfg *config.Config) *fiber.App {
 	app.Use(middleware.Logger())
 	app.Use(middleware.CORS())
 
+	// Swagger route
+	app.Get("/swagger/*", fiberSwagger.WrapHandler)
+
 	api := app.Group("/api")
 	v1 := api.Group("/v1")
 
 	v1.Get("/health", handler.HealthCheck)
 
-	// Swagger route
-	app.Get("/swagger/*", fiberSwagger.WrapHandler)
+	// Auth routes
+	auth := v1.Group("/auth")
+	auth.Post("/register/email", handler.RegisterEmail)
+	auth.Post("/register/oauth", handler.RegisterOAuth)
 
 	return app
 }
