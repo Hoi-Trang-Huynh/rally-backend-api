@@ -25,8 +25,6 @@ func Setup(cfg *config.Config) *fiber.App {
 
 	// Auth routes
 	auth := v1.Group("/auth")
-	auth.Post("/register/email", handler.RegisterEmail)
-	auth.Post("/register/oauth", handler.RegisterOAuth)
-
+	auth.Post("/register", handler.RegisterOrLogin)
 	return app
 }

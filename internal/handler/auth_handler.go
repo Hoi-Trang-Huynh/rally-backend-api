@@ -1,39 +1,35 @@
 package handler
 
 import (
-    "github.com/gofiber/fiber/v2"
-    // "github.com/Hoi-Trang-Huynh/rally-backend-api/internal/model"
+	"github.com/gofiber/fiber/v2"
+	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/model"
 )
 
-// @Summary Register or log in with email
-// @Description Register a new user if email doesn't exist, or log in if it already exists
+// RegisterOrLogin godoc
+// @Summary Register or login a user via Firebase
+// @Description Accepts a Firebase ID token and returns user info (registers if new)
 // @Tags Authentication
+// @ID registerOrLogin
 // @Accept json
 // @Produce json
-// @Param request body model.RegisterEmailRequest true "User registration payload"
+// @Param request body model.FirebaseAuthRequest true "Firebase authentication payload"
 // @Success 200 {object} model.RegisterResponse
-// @Failure 400 {object} model.ErrorResponse
-// @Router /api/v1/auth/register/email [post]
-func RegisterEmail(c *fiber.Ctx) error {
-    // Placeholder logic
-    return c.Status(fiber.StatusCreated).JSON(fiber.Map{
-        "message": "Registration successful (email)",
-    })
+// @Failure 400 {object} model.ErrorResponse "Invalid or expired token"
+// @Router /auth/register [post]
+func RegisterOrLogin(c *fiber.Ctx) error {
+	var req model.FirebaseAuthRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(model.ErrorResponse{
+			Message: "Invalid request payload",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(model.RegisterResponse{
+		Message: "User authenticated successfully",
+		User: &model.UserResponse{
+			UserID: "mock-uuid-1234",
+			Email:  "user@example.com",
+		},
+	})
 }
 
-// RegisterOAuth godoc
-// @Summary Register or login using OAuth providers
-// @Description Registers a user through Google, Facebook, or other OAuth providers using Firebase.
-// @Tags Authentication
-// @Accept json
-// @Produce json
-// @Param request body model.RegisterOAuthRequest true "OAuth registration payload"
-// @Success 200 {object} model.RegisterResponse
-// @Failure 400 {object} model.ErrorResponse "Invalid token or provider"
-// @Router /api/v1/auth/register/oauth [post]
-func RegisterOAuth(c *fiber.Ctx) error {
-    // Placeholder logic
-    return c.JSON(fiber.Map{
-        "message": "Registration successful (OAuth)",
-    })
-}
