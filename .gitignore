@@ -56,3 +56,6 @@ secrets.yaml
 # Air
 /tmp/
 build.log
+
+#Firebase
+serviceAccountKey.json

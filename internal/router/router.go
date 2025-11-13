@@ -8,8 +8,8 @@ import (
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/middleware"
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/service"
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/repository"
-	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/firebase"
-	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/database"
+	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/infrastructure/firebase"
+	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/infrastructure/database"
 	"github.com/gofiber/fiber/v2"
 	fiberSwagger "github.com/swaggo/fiber-swagger"
 )
@@ -24,7 +24,10 @@ func Setup(cfg *config.Config) *fiber.App {
 	db := database.GetDB()
 	userRepo := repository.NewUserRepository(db)
 	fbClient := firebase.GetClient()
-	authService := service.NewAuthService(fbClient, userRepo)
+	authService, err := service.NewAuthService(fbClient, userRepo)
+	if err != nil {
+		panic(err)
+	}
 	authHandler := handler.NewAuthHandler(authService)
 	
 	// Swagger route
@@ -38,8 +41,7 @@ func Setup(cfg *config.Config) *fiber.App {
 
 	// Auth routes
 	auth := v1.Group("/auth")
-	auth.Post("/register", handler.RegisterOrLogin)
-	auth.Post("/login", handler.Login)
-
+	auth.Post("/login", authHandler.Login)
+	auth.Post("/register", authHandler.RegisterOrLogin)
 	return app
 }

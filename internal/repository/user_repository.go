@@ -2,10 +2,12 @@ package repository
 
 import (
 	"context"
-	"database/sql"
 	"errors"
+	"time"
 
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/model"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 type UserRepository interface {
@@ -15,73 +17,55 @@ type UserRepository interface {
 }
 
 type userRepository struct {
-	db *sql.DB
+	db         *mongo.Database
+	collection *mongo.Collection
 }
 
-func NewUserRepository(db *sql.DB) UserRepository {
+// NewUserRepository initializes a MongoDB-backed UserRepository
+func NewUserRepository(db *mongo.Database) UserRepository {
 	return &userRepository{
-		db: db,
+		db:         db,
+		collection: db.Collection("users"),
 	}
 }
 
+// GetUserByFirebaseUID finds a user by Firebase UID
 func (r *userRepository) GetUserByFirebaseUID(ctx context.Context, firebaseUID string) (*model.User, error) {
-	query := `
-		SELECT user_id, firebase_uid, email, created_at, updated_at
-		FROM users
-		WHERE firebase_uid = $1
-	`
-
 	var user model.User
-	err := r.db.QueryRowContext(ctx, query, firebaseUID).Scan(
-		&user.UserID,
-		&user.FirebaseUID,
-		&user.Email,
-		&user.CreatedAt,
-		&user.UpdatedAt,
-	)
-
+	err := r.collection.FindOne(ctx, bson.M{"firebase_uid": firebaseUID}).Decode(&user)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil // User not found
-		}
-		return nil, err
-	}
-
-	return &user, nil
-}
-
-func (r *userRepository) CreateUser(ctx context.Context, user *model.User) error {
-	query := `
-		INSERT INTO users (user_id, firebase_uid, email, created_at, updated_at)
-		VALUES ($1, $2, $3, NOW(), NOW())
-	`
-
-	_, err := r.db.ExecContext(ctx, query, user.UserID, user.FirebaseUID, user.Email)
-	return err
-}
-
-func (r *userRepository) GetUserByID(ctx context.Context, userID string) (*model.User, error) {
-	query := `
-		SELECT user_id, firebase_uid, email, created_at, updated_at
-		FROM users
-		WHERE user_id = $1
-	`
-
-	var user model.User
-	err := r.db.QueryRowContext(ctx, query, userID).Scan(
-		&user.UserID,
-		&user.FirebaseUID,
-		&user.Email,
-		&user.CreatedAt,
-		&user.UpdatedAt,
-	)
-
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, mongo.ErrNoDocuments) {
 			return nil, nil
 		}
 		return nil, err
 	}
+	return &user, nil
+}
 
+// CreateUser inserts a new user document
+func (r *userRepository) CreateUser(ctx context.Context, user *model.User) error {
+	// Set timestamps if not already set
+	now := time.Now()
+	if user.CreatedAt.IsZero() {
+		user.CreatedAt = now
+	}
+	if user.UpdatedAt.IsZero() {
+		user.UpdatedAt = now
+	}
+
+	_, err := r.collection.InsertOne(ctx, user)
+	return err
+}
+
+// GetUserByID finds a user by UserID
+func (r *userRepository) GetUserByID(ctx context.Context, userID string) (*model.User, error) {
+	var user model.User
+	err := r.collection.FindOne(ctx, bson.M{"user_id": userID}).Decode(&user)
+	if err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, nil
+		}
+		return nil, err
+	}
 	return &user, nil
 }
