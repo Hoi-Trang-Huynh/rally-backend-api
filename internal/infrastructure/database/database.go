@@ -18,7 +18,6 @@ var (
 	mongoOnce           sync.Once
 )
 
-// InitializeDatabase connects to MongoDB and initializes the global client + db
 func InitializeDatabase(cfg config.DatabaseConfig) error {
 	var err error
 	mongoOnce.Do(func() {
@@ -28,13 +27,12 @@ func InitializeDatabase(cfg config.DatabaseConfig) error {
 		clientOpts := options.Client().ApplyURI(cfg.MONGODB_URI)
 		clientInstance, err = mongo.Connect(ctx, clientOpts)
 		if err != nil {
-			log.Printf("❌ Failed to connect to MongoDB: %v", err)
+			log.Printf("Failed to connect to MongoDB: %v", err)
 			return
 		}
 
-		// Ping to confirm connection
 		if err = clientInstance.Ping(ctx, readpref.Primary()); err != nil {
-			log.Printf("❌ MongoDB ping failed: %v", err)
+			log.Printf("MongoDB ping failed: %v", err)
 			return
 		}
 
@@ -45,7 +43,6 @@ func InitializeDatabase(cfg config.DatabaseConfig) error {
 	return err
 }
 
-// GetDB returns the MongoDB database instance
 func GetDB() *mongo.Database {
 	if dbInstance == nil {
 		log.Fatal("MongoDB not initialized. Call InitializeDatabase() first.")
@@ -53,7 +50,6 @@ func GetDB() *mongo.Database {
 	return dbInstance
 }
 
-// CloseDatabase gracefully disconnects the MongoDB client
 func CloseDatabase() {
 	if clientInstance != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
