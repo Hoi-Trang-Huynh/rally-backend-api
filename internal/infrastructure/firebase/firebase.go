@@ -38,15 +38,13 @@ func InitializeClient(credentialsPath string) error {
 }
 
 
-// GetClient returns the Firebase app instance
 func GetClient() *firebase.App {
 	if client == nil {
-		log.Fatal("Firebase client not initialized. Call Initialize() first")
+		log.Fatal("Firebase client not initialized. Call InitializeClient() first")
 	}
 	return client
 }
 
-// MustInitialize initializes Firebase and panics on error
 func MustInitialize(credentialsPath string) {
 	if err := InitializeClient(credentialsPath); err != nil {
 		log.Fatalf("Failed to initialize Firebase: %v", err)
