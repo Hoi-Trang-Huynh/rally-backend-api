@@ -1,63 +1,58 @@
 package router
 
 import (
-	"fmt"
-	_ "github.com/Hoi-Trang-Huynh/rally-backend-api/api/docs" // docs package
-	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/handler"
+	_ "github.com/Hoi-Trang-Huynh/rally-backend-api/api/docs"
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/config"
-	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/middleware"
-	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/service"
-	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/repository"
-	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/infrastructure/firebase"
+	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/handler"
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/infrastructure/database"
+	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/infrastructure/firebase"
+	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/middleware"
+	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/repository"
+	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/service"
 	"github.com/gofiber/fiber/v2"
-	fiberSwagger "github.com/swaggo/fiber-swagger"
+    fiberSwagger "github.com/swaggo/fiber-swagger"
+	fb "firebase.google.com/go/v4"
 )
 
 func Setup(cfg *config.Config) *fiber.App {
-    db := database.GetDB()
-    if db == nil {
-        panic("failed to get database connection")
-    }
-
+	db := database.GetDB()
 	userRepo := repository.NewUserRepository(db)
-    
-    fbClient := firebase.GetClient()
-    if fbClient == nil {
-        return nil, fmt.Errorf("failed to get firebase client")
-    }
-    
-    return SetupWithDeps(userRepo, fbClient)
+
+	fbApp := firebase.GetClient()
+
+	app, err := SetupWithDeps(userRepo, fbApp)
+	if err != nil {
+		panic(err)
+	}
+
+	return app
 }
 
 func SetupWithDeps(
-    userRepo repository.UserRepository,
-    fbClient *firebase.App,
+	userRepo repository.UserRepository,
+	fbApp *fb.App,
 ) (*fiber.App, error) {
-    app := fiber.New()
 
-    app.Use(middleware.Logger())
-    app.Use(middleware.CORS())
+	app := fiber.New()
 
-    authService, err := service.NewAuthService(fbClient, userRepo)
-    if err != nil {
-        return nil, fmt.Errorf("failed to create auth service: %w", err)
-    }
+	app.Use(middleware.Logger())
+	app.Use(middleware.CORS())
 
-    authHandler := handler.NewAuthHandler(authService)
+	authService, err := service.NewAuthService(fbApp, userRepo)
+	if err != nil {
+		return nil, err
+	}
 
-    // Swagger route
-    app.Get("/swagger/*", fiberSwagger.WrapHandler)
+	authHandler := handler.NewAuthHandler(authService)
 
-    // Routes
-    api := app.Group("/api")
-    v1 := api.Group("/v1")
+	app.Get("/swagger/*", fiberSwagger.WrapHandler)
 
-    v1.Get("/health", handler.HealthCheck)
+	api := app.Group("/api")
+	v1 := api.Group("/v1")
+	v1.Get("/health", handler.HealthCheck)
 
-    // Auth routes
-    auth := v1.Group("/auth")
-    auth.Post("/register", authHandler.RegisterOrLogin)
+	auth := v1.Group("/auth")
+	auth.Post("/register", authHandler.RegisterOrLogin)
 
-    return app, nil
+	return app, nil
 }

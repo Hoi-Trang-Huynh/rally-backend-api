@@ -38,6 +38,8 @@ func (h *AuthHandler) RegisterOrLogin(c *fiber.Ctx) error {
 		})
 	}
 
+	fmt.Printf("Parsed request: %+v\n", req)
+
 	// Validate token is not empty
 	if req.IDToken == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(model.ErrorResponse{
