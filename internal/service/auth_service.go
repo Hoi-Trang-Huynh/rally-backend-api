@@ -62,3 +62,19 @@ func (s *AuthService) RegisterOrLogin(ctx context.Context, idToken string) (*mod
 
 	return newUser, true, nil
 }
+
+func (s *AuthService) Login(ctx context.Context, idToken string) (*model.User, error) {
+	// Verify Firebase token
+	token, err := s.firebaseAuth.VerifyIDToken(ctx, idToken)
+	if err != nil {
+		return nil, fmt.Errorf("invalid or expired token: %w", err)
+	}
+
+	// Fetch user from DB
+	user, err := s.userRepo.GetUserByID(ctx, token.UID)
+	if user == nil {
+		return nil, fmt.Errorf("user not found")
+	}
+
+	return user, nil
+}

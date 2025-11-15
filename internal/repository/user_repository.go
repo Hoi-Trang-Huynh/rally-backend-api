@@ -3,7 +3,6 @@ package repository
 import (
 	"context"
 	"errors"
-	"time"
 
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/model"
 	"go.mongodb.org/mongo-driver/bson"

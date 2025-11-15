@@ -53,6 +53,9 @@ func SetupWithDeps(
 
 	auth := v1.Group("/auth")
 	auth.Post("/register", authHandler.RegisterOrLogin)
+	auth.Post("/login", authHandler.Login)
+
 
 	return app, nil
 }
+
