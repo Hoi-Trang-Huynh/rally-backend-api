@@ -5,12 +5,12 @@ import (
 	"log"
 	"sync"
 
-	firebase "firebase.google.com/go/v4"
+	fb "firebase.google.com/go/v4"
 	"google.golang.org/api/option"
 )
 
 var (
-	client *firebase.App
+	client *fb.App
 	firebaseOnce	sync.Once
 )
 
@@ -22,10 +22,10 @@ func InitializeClient(credentialsPath string) error {
 		var opt option.ClientOption
 		if credentialsPath != "" {
 			opt = option.WithCredentialsFile(credentialsPath)
-			client, err = firebase.NewApp(ctx, nil, opt)
+			client, err = fb.NewApp(ctx, nil, opt)
 		} else {
 			// Use Application Default Credentials on Cloud Run
-			client, err = firebase.NewApp(ctx, nil)
+			client, err = fb.NewApp(ctx, nil)
 		}
 
 		if err != nil {
@@ -38,7 +38,7 @@ func InitializeClient(credentialsPath string) error {
 }
 
 
-func GetClient() *firebase.App {
+func GetClient() *fb.App {
 	if client == nil {
 		log.Fatal("Firebase client not initialized. Call InitializeClient() first")
 	}
