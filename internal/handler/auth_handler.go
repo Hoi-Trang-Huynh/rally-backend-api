@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"time"
+	"fmt"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/model"
