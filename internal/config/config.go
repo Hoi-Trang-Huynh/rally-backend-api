@@ -7,13 +7,26 @@ import (
 )
 
 type Config struct {
-	Port         string
-	DatabaseURL  string
-	FirebaseCred string
-	JWTSecret    string
-	Env          string
+	Server   ServerConfig
+	Database DatabaseConfig
+	Firebase FirebaseConfig
 }
 
+type ServerConfig struct {
+	Port string
+	Env  string
+}
+
+type DatabaseConfig struct {
+	MONGODB_URI string
+	MONGODB_DB string
+}
+
+type FirebaseConfig struct {
+	CredentialsPath string
+}
+
+// Load loads configuration from .env file and environment variables
 func Load() *Config {
 	viper.SetConfigFile(".env")
 	viper.AutomaticEnv()
@@ -24,11 +37,28 @@ func Load() *Config {
 
 	viper.SetDefault("PORT", "8080")
 
-	return &Config{
-		Port:         viper.GetString("PORT"),
-		DatabaseURL:  viper.GetString("DATABASE_URL"),
-		FirebaseCred: viper.GetString("FIREBASE_CRED"),
-		JWTSecret:    viper.GetString("JWT_SECRET"),
-		Env:          viper.GetString("ENV"),
+	cfg := &Config{
+		Server: ServerConfig{
+			Port: getEnv("PORT", "8080"),
+			Env:  getEnv("ENV", "development"),
+		},
+		Database: DatabaseConfig{
+			MONGODB_URI: getEnv("MONGODB_URI", ""),
+			MONGODB_DB: getEnv("MONGODB_DB", "rally_db"),
+		},
+		Firebase: FirebaseConfig{
+			// In Cloud Run, this should be left empty ("")
+			CredentialsPath: getEnv("FIREBASE_CREDENTIALS_PATH", ""),
+		},
 	}
+
+	return cfg
+}
+
+// getEnv is a helper for viper
+func getEnv(key, defaultValue string) string {
+	if viper.IsSet(key) {
+		return viper.GetString(key)
+	}
+	return defaultValue
 }

@@ -1,11 +1,11 @@
 package model
 
 type FirebaseAuthRequest struct {
-	IDToken string `json:"id_token" example:"eyJhbGciOi..."` // Firebase JWT token
+	IDToken string `json:"id_token"`
 } //@name FirebaseAuthRequest
 
 type LoginResponse struct {
-    Message       string         `json:"message" example:"Login successful"`
+    Message       string         `json:"message" example:"Registration successful"`
     User          *UserResponse  `json:"user,omitempty"`       		// only if user already existed or has profile
 } //@name LoginResponse
 
