@@ -2,7 +2,7 @@ package handler
 
 import (
 	"github.com/gofiber/fiber/v2"
-	"github.com/Hoi-Trang-Huynh/rally-backend-api-2/internal/model"
+	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/model"
 )
 
 // Login godoc
