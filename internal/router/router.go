@@ -23,5 +23,8 @@ func Setup(cfg *config.Config) *fiber.App {
 	// Swagger route
 	app.Get("/swagger/*", fiberSwagger.WrapHandler)
 
+	// Auth routes
+	auth.Post("/login", handler.Login)
+
 	return app
 }
