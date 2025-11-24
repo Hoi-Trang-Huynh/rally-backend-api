@@ -9,6 +9,10 @@ type RegisterResponse struct {
     User          *UserResponse  `json:"user,omitempty"`       		// only if user already existed or has profile
     Onboarding    bool           `json:"onboarding" example:"true"` // true if user needs onboarding
 } //@name RegisterResponse
+type LoginResponse struct {
+    Message       string         `json:"message" example:"Login successful"`
+    User          *UserResponse  `json:"user,omitempty"`       		// only if user already existed or has profile
+} //@name LoginResponse
 
 type UserResponse struct {
 	UserID          string `json:"id" example:"65b8a12c3f5e"`
