@@ -31,6 +31,7 @@ func RegisterOrLogin(c *fiber.Ctx) error {
         Email:  "user@example.com",
       },
     })
+}
   
 // Login godoc
 // @Summary Login a user via Firebase
