@@ -3,7 +3,6 @@ package handler
 import (
 	"context"
 	"time"
-	"fmt"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/model"
@@ -50,8 +49,6 @@ func (h *AuthHandler) RegisterOrLogin(c *fiber.Ctx) error {
 		})
 	}
 
-	fmt.Printf("Parsed request: %+v\n", req)
-
 	// Validate token is not empty
 	if req.IDToken == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(model.ErrorResponse{
@@ -82,6 +79,7 @@ func (h *AuthHandler) RegisterOrLogin(c *fiber.Ctx) error {
 			UserID: user.UserID,
 			Email:  user.Email,
 		},
+		Onboarding: isNewUser,
 	})
 }
   
