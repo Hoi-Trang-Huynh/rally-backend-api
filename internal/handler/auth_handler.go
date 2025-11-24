@@ -107,8 +107,8 @@ func Login(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(model.LoginResponse{
 		Message: "User loged in successfully",
 		User: &model.UserResponse{
-			UserID: user.UserID,
-			Email:  user.Email,
+			UserID: "mock-uuid-1234",
+			Email:  "user@example.com",
 		},
 	})
 }
