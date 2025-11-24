@@ -4,6 +4,11 @@ type FirebaseAuthRequest struct {
 	IDToken string `json:"id_token" example:"eyJhbGciOi..."` // Firebase JWT token
 } //@name FirebaseAuthRequest
 
+type RegisterResponse struct {
+    Message       string         `json:"message" example:"Registration successful"`
+    User          *UserResponse  `json:"user,omitempty"`       		// only if user already existed or has profile
+    Onboarding    bool           `json:"onboarding" example:"true"` // true if user needs onboarding
+} //@name RegisterResponse
 type LoginResponse struct {
     Message       string         `json:"message" example:"Login successful"`
     User          *UserResponse  `json:"user,omitempty"`       		// only if user already existed or has profile

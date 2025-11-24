@@ -8,8 +8,8 @@ import "github.com/gofiber/fiber/v2"
 // @Tags system
 // @Accept json
 // @Produce json
-// @Success 200 {object} map[string]string
-// @Router /api/v1/health [get]
+// @Success 200 
+// @Router /health [get]
 func HealthCheck(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{
 		"status": "ok",
