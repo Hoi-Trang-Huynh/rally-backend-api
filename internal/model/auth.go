@@ -1,7 +1,7 @@
 package model
 
 type FirebaseAuthRequest struct {
-	IDToken string `json:"id_token" example:"eyJhbGciOi..."` // Firebase JWT token
+	IDToken string `json:"id_token"`
 } //@name FirebaseAuthRequest
 
 type RegisterResponse struct {
