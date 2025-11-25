@@ -71,7 +71,7 @@ func (s *AuthService) Login(ctx context.Context, idToken string) (*model.User, e
 	}
 
 	// Fetch user from DB
-	user, err := s.userRepo.GetUserByID(ctx, token.UID)
+	user, err := s.userRepo.GetUserByFirebaseUID(ctx, token.UID)
 	if user == nil {
 		return nil, fmt.Errorf("user not found")
 	}
