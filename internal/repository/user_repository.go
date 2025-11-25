@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/model"
 	"go.mongodb.org/mongo-driver/bson"
@@ -12,7 +13,6 @@ import (
 type UserRepository interface {
 	GetUserByFirebaseUID(ctx context.Context, firebaseUID string) (*model.User, error)
 	CreateUser(ctx context.Context, user *model.User) error
-	GetUserByID(ctx context.Context, userID string) (*model.User, error)
 }
 
 type userRepository struct {
@@ -54,17 +54,4 @@ func (r *userRepository) CreateUser(ctx context.Context, user *model.User) error
 
 	_, err := r.collection.InsertOne(ctx, user)
 	return err
-}
-
-// GetUserByID finds a user by UserID
-func (r *userRepository) GetUserByID(ctx context.Context, userID string) (*model.User, error) {
-	var user model.User
-	err := r.collection.FindOne(ctx, bson.M{"user_id": userID}).Decode(&user)
-	if err != nil {
-		if errors.Is(err, mongo.ErrNoDocuments) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	return &user, nil
 }
