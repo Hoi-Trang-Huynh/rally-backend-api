@@ -4,7 +4,7 @@ FROM alpine:latest
 WORKDIR /root/
 
 # Copy the pre-built binary from GitHub Actions
-COPY cmd/server/server .
+COPY cmd/server/server ./server
 
 # Make it executable
 RUN chmod +x ./server
