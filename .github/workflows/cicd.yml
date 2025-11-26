@@ -46,13 +46,13 @@
         #   run: go test ./...
 
         - name: Build binary
-          run: go build -v -o cmd/server ./cmd/server
+          run: go build -v -o cmd/server/server ./cmd/server
 
         - name: Upload build artifacts
           uses: actions/upload-artifact@v4
           with:
             name: go-binary
-            path: cmd/server
+            path: cmd/server/server
 
     # 2️⃣ PUSH IMAGE
     push:
