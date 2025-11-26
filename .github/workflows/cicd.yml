@@ -46,7 +46,7 @@
         #   run: go test ./...
 
         - name: Build binary
-          run: go build -v ./cmd/server
+          run: go build -v -o cmd/server ./cmd/server
 
         - name: Upload build artifacts
           uses: actions/upload-artifact@v4
@@ -72,6 +72,13 @@
           with:
             name: go-binary
             path: cmd/server
+            
+        - name: List files
+          run: |
+            echo "=== Build context contents ==="
+            ls -la
+            echo "=== cmd/server contents ==="
+            ls -la cmd/server/
 
         - name: Set up Google Cloud authentication
           uses: google-github-actions/auth@v2
