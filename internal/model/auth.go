@@ -10,7 +10,7 @@ type RegisterResponse struct {
     Onboarding    bool           `json:"onboarding" example:"true"` // true if user needs onboarding
 } //@name RegisterResponse
 type LoginResponse struct {
-    Message       string         `json:"message" example:"Login successful"`
+    Message       string         `json:"message" example:"Registration successful"`
     User          *UserResponse  `json:"user,omitempty"`       		// only if user already existed or has profile
 } //@name LoginResponse
 
