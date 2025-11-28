@@ -128,4 +128,4 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 			Email:  user.Email,
 		},
 	})
-}l
+}
