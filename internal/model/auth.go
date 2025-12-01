@@ -11,7 +11,7 @@ type RegisterResponse struct {
 } //@name RegisterResponse
 
 type LoginResponse struct {
-    Message       string         `json:"message" example:"Login successful"`
+    Message       string         `json:"message" example:"Registration successful"`
     User          *UserResponse  `json:"user,omitempty"`       		// only if user already existed or has profile
 } //@name LoginResponse
 
