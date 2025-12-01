@@ -43,7 +43,13 @@ func SetupWithDeps(
 		return nil, err
 	}
 
+	userService, err := service.NewUserService(fbApp, userRepo)
+	if err != nil {
+		return nil, err
+	}
+
 	authHandler := handler.NewAuthHandler(authService)
+	userHandler := handler.NewUserHandler(userService)
 
 	app.Get("/swagger/*", fiberSwagger.WrapHandler)
 
@@ -53,6 +59,12 @@ func SetupWithDeps(
 
 	auth := v1.Group("/auth")
 	auth.Post("/register", authHandler.RegisterOrLogin)
+	auth.Post("/login", authHandler.Login)
+
+	users := v1.Group("/user")
+	users.Get("/me/profile", userHandler.GetMyProfile)
+	users.Get("/:id/profile", userHandler.GetProfile)
+	users.Put("/:id/profile", userHandler.UpdateProfile)
 
 	return app, nil
 }

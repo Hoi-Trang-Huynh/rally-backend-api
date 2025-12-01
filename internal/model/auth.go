@@ -9,15 +9,19 @@ type RegisterResponse struct {
     User          *UserResponse  `json:"user,omitempty"`       		// only if user already existed or has profile
     Onboarding    bool           `json:"onboarding" example:"true"` // true if user needs onboarding
 } //@name RegisterResponse
+
 type LoginResponse struct {
     Message       string         `json:"message" example:"Login successful"`
     User          *UserResponse  `json:"user,omitempty"`       		// only if user already existed or has profile
 } //@name LoginResponse
 
 type UserResponse struct {
-	UserID          string `json:"id" example:"65b8a12c3f5e"`
+	ID          string `json:"id" example:"507f1f77bcf86cd799439011"`
 	Email       string `json:"email" example:"john@example.com"`
 	DisplayName string `json:"display_name,omitempty" example:"John Doe"`
+	FirstName   string `json:"first_name,omitempty" example:"John"`
+	LastName    string `json:"last_name,omitempty" example:"Doe"`
+	ProfilePic  string `json:"profile_pic,omitempty" example:"https://example.com/profile.jpg"`
 } //@name UserResponse
 
 type ErrorResponse struct {
