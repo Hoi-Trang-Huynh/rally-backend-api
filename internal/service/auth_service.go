@@ -9,7 +9,7 @@ import (
 	"firebase.google.com/go/v4/auth"
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/model"
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/repository"
-	"github.com/google/uuid"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type AuthService struct {
@@ -51,7 +51,7 @@ func (s *AuthService) RegisterOrLogin(ctx context.Context, idToken string) (*mod
 
 	// User doesn't exist, create new user
 	newUser := &model.User{
-		UserID:      uuid.New().String(),
+		ID:          primitive.NewObjectID(), // MongoDB will generate this automatically in CreateUser if zero
 		FirebaseUID: token.UID,
 		Email:       email,
 	}

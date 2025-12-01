@@ -19,17 +19,17 @@ func NewAuthHandler(authService *service.AuthService) *AuthHandler {
 	}
 }
 
-// RegisterOrLogin godoc
-// @Summary Register or login a user via Firebase
-// @Description Accepts a Firebase ID token and returns user info (registers if new)
-// @Tags Authentication
-// @ID registerOrLogin
-// @Accept json
-// @Produce json
-// @Param request body model.FirebaseAuthRequest true "Firebase authentication payload"
-// @Success 200 {object} model.RegisterResponse
-// @Failure 400 {object} model.ErrorResponse "Invalid or expired token"
-// @Router /auth/register [post]
+// Helper function to convert User to UserResponse
+func convertToUserResponse(user *model.User) *model.UserResponse {
+	return &model.UserResponse{
+		ID:          user.ID.Hex(),
+		Email:       user.Email,
+		FirstName:   user.FirstName,
+		LastName:    user.LastName,
+		ProfilePic:  user.ProfilePic,
+	}
+}
+
 // RegisterOrLogin godoc
 // @Summary Register or login a user via Firebase
 // @Description Accepts a Firebase ID token and returns user info (registers if new)
@@ -75,10 +75,7 @@ func (h *AuthHandler) RegisterOrLogin(c *fiber.Ctx) error {
 
 	return c.Status(fiber.StatusOK).JSON(model.RegisterResponse{
 		Message: message,
-		User: &model.UserResponse{
-			UserID: user.UserID,
-			Email:  user.Email,
-		},
+		User:    convertToUserResponse(user),
 		Onboarding: isNewUser,
 	})
 }
@@ -123,9 +120,6 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 
 	return c.Status(fiber.StatusOK).JSON(model.LoginResponse{
 		Message: "User logged in successfully",
-		User: &model.UserResponse{
-			UserID: user.UserID,
-			Email:  user.Email,
-		},
+		User:    convertToUserResponse(user),
 	})
 }
