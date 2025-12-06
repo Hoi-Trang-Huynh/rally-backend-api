@@ -156,3 +156,89 @@
               --port=8080 \
               --memory=512Mi \
               --max-instances=5
+
+    # 4️⃣ NOTIFY
+    notify:
+      name: Notify MS Teams
+      runs-on: ubuntu-latest
+      needs: [build, push, deploy]
+      if: always()
+      steps:
+        - name: Determine Status
+          id: status
+          run: |
+            if [[ "${{ needs.build.result }}" == "failure" || "${{ needs.push.result }}" == "failure" || "${{ needs.deploy.result }}" == "failure" ]]; then
+              echo "status=Failure" >> $GITHUB_OUTPUT
+              echo "color=Attention" >> $GITHUB_OUTPUT # Red
+            else
+              echo "status=Success" >> $GITHUB_OUTPUT
+              echo "color=Good" >> $GITHUB_OUTPUT # Green
+            fi
+
+        - name: Send Notification
+          run: |
+            # Construct JSON Payload
+            cat <<EOF > payload.json
+            {
+              "type": "message",
+              "attachments": [
+                {
+                  "contentType": "application/vnd.microsoft.card.adaptive",
+                  "content": {
+                    "type": "AdaptiveCard",
+                    "version": "1.2",
+                    "body": [
+                      {
+                        "type": "TextBlock",
+                        "text": "GitHub Actions Notification",
+                        "weight": "Bolder",
+                        "size": "Medium"
+                      },
+                      {
+                        "type": "TextBlock",
+                        "text": "Workflow: ${{ github.workflow }}",
+                        "isSubtle": true,
+                        "wrap": true
+                      },
+                      {
+                        "type": "FactSet",
+                        "facts": [
+                          { "title": "Status:", "value": "${{ steps.status.outputs.status }}" },
+                          { "title": "Repository:", "value": "${{ github.repository }}" },
+                          { "title": "Branch:", "value": "${{ github.ref_name }}" },
+                          { "title": "Commit:", "value": "${{ github.sha }}" }
+                        ]
+                      },
+                      {
+                        "type": "TextBlock",
+                        "text": "Job Statuses:",
+                        "weight": "Bolder",
+                        "spacing": "Medium"
+                      },
+                      {
+                        "type": "FactSet",
+                        "facts": [
+                          { "title": "Build:", "value": "${{ needs.build.result }}" },
+                          { "title": "Push:", "value": "${{ needs.push.result }}" },
+                          { "title": "Deploy:", "value": "${{ needs.deploy.result }}" }
+                        ]
+                      }
+                    ],
+                    "actions": [
+                      {
+                        "type": "Action.OpenUrl",
+                        "title": "View Run",
+                        "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                      }
+                    ],
+                    "msteams": {
+                      "width": "Full"
+                    }
+                  }
+                }
+              ]
+            }
+            EOF
+            
+            # Send to Teams
+            curl -H "Content-Type: application/json" -d @payload.json "${{ secrets.MS_TEAMS_WEBHOOK_URL }}"
