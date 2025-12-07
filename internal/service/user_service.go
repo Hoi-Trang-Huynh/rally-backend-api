@@ -108,17 +108,18 @@ func (s *UserService) ValidateUserOwnership(ctx context.Context, idToken, userID
 // ConvertToProfileResponse converts User model to ProfileResponse
 func (s *UserService) ConvertToProfileResponse(user *model.User) *model.ProfileResponse {
 	return &model.ProfileResponse{
-		ID:          user.ID.Hex(), // Convert ObjectID to string
-		Email:       user.Email,
-		DisplayName: user.DisplayName,
-		FirstName:   user.FirstName,
-		LastName:    user.LastName,
-		ProfilePic:  user.ProfilePic,
-		Bio:         user.Bio,
-		Phone:       user.Phone,
-		DateOfBirth: user.DateOfBirth,
-		Location:    user.Location,
-		CreatedAt:   user.CreatedAt,
-		UpdatedAt:   user.UpdatedAt,
+		ID:              user.ID.Hex(), // Convert ObjectID to string
+		Email:           user.Email,
+		Username:        user.Username,
+		FirstName:       user.FirstName,
+		LastName:        user.LastName,
+		AvatarUrl:       user.AvatarUrl,
+		BioText:         user.BioText,
+		PhoneNumber:     user.PhoneNumber,
+		CreatedAt:       user.CreatedAt,
+		UpdatedAt:       user.UpdatedAt,
+		IsActive:        user.IsActive,
+		IsEmailVerified: user.IsEmailVerified,
+		IsOnboarding:    user.IsOnboarding,
 	}
 }

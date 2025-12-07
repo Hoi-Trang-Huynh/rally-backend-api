@@ -5,25 +5,27 @@ type FirebaseAuthRequest struct {
 } //@name FirebaseAuthRequest
 
 type RegisterResponse struct {
-    Message       string         `json:"message" example:"Registration successful"`
-    User          *UserResponse  `json:"user,omitempty"`       		// only if user already existed or has profile
-    Onboarding    bool           `json:"onboarding" example:"true"` // true if user needs onboarding
+	Message string        `json:"message" example:"Registration successful"`
+	User    *UserResponse `json:"user,omitempty"`
 } //@name RegisterResponse
 
 type LoginResponse struct {
-    Message       string         `json:"message" example:"Registration successful"`
-    User          *UserResponse  `json:"user,omitempty"`       		// only if user already existed or has profile
+	Message string        `json:"message" example:"Login successful"`
+	User    *UserResponse `json:"user,omitempty"`
 } //@name LoginResponse
 
 type UserResponse struct {
-	ID          string `json:"id" example:"507f1f77bcf86cd799439011"`
-	Email       string `json:"email" example:"john@example.com"`
-	DisplayName string `json:"display_name,omitempty" example:"John Doe"`
-	FirstName   string `json:"first_name,omitempty" example:"John"`
-	LastName    string `json:"last_name,omitempty" example:"Doe"`
-	ProfilePic  string `json:"profile_pic,omitempty" example:"https://example.com/profile.jpg"`
+	ID              string `json:"id" example:"507f1f77bcf86cd799439011"`
+	Email           string `json:"email" example:"john@example.com"`
+	Username        string `json:"username,omitempty" example:"johndoe"`
+	FirstName       string `json:"firstName,omitempty" example:"John"`
+	LastName        string `json:"lastName,omitempty" example:"Doe"`
+	AvatarUrl       string `json:"avatarUrl,omitempty" example:"https://example.com/avatar.jpg"`
+	IsActive        bool   `json:"isActive" example:"true"`
+	IsEmailVerified bool   `json:"isEmailVerified" example:"false"`
+	IsOnboarding    bool   `json:"isOnboarding" example:"true"`
 } //@name UserResponse
 
 type ErrorResponse struct {
-    Message string `json:"message" example:"Invalid email or password"`
+	Message string `json:"message" example:"Invalid email or password"`
 } //@name ErrorResponse

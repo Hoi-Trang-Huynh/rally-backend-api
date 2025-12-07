@@ -3,10 +3,10 @@ package handler
 import (
 	"context"
 	"time"
-	
-	"github.com/gofiber/fiber/v2"
+
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/model"
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/service"
+	"github.com/gofiber/fiber/v2"
 )
 
 type AuthHandler struct {
@@ -22,11 +22,15 @@ func NewAuthHandler(authService *service.AuthService) *AuthHandler {
 // Helper function to convert User to UserResponse
 func convertToUserResponse(user *model.User) *model.UserResponse {
 	return &model.UserResponse{
-		ID:          user.ID.Hex(),
-		Email:       user.Email,
-		FirstName:   user.FirstName,
-		LastName:    user.LastName,
-		ProfilePic:  user.ProfilePic,
+		ID:              user.ID.Hex(),
+		Email:           user.Email,
+		Username:        user.Username,
+		FirstName:       user.FirstName,
+		LastName:        user.LastName,
+		AvatarUrl:       user.AvatarUrl,
+		IsActive:        user.IsActive,
+		IsEmailVerified: user.IsEmailVerified,
+		IsOnboarding:    user.IsOnboarding,
 	}
 }
 
@@ -61,7 +65,7 @@ func (h *AuthHandler) RegisterOrLogin(c *fiber.Ctx) error {
 	defer cancel()
 
 	// Verify Firebase token and get/create user
-	user, isNewUser, err := h.authService.RegisterOrLogin(ctx, req.IDToken)
+	user, err := h.authService.RegisterOrLogin(ctx, req.IDToken)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(model.ErrorResponse{
 			Message: err.Error(),
@@ -69,17 +73,16 @@ func (h *AuthHandler) RegisterOrLogin(c *fiber.Ctx) error {
 	}
 
 	message := "User logged in successfully"
-	if isNewUser {
+	if user.IsOnboarding {
 		message = "User registered successfully"
 	}
 
 	return c.Status(fiber.StatusOK).JSON(model.RegisterResponse{
 		Message: message,
 		User:    convertToUserResponse(user),
-		Onboarding: isNewUser,
 	})
 }
-  
+
 // Login godoc
 // @Summary Login a user via Firebase
 // @Description Accepts a Firebase ID token and returns user info

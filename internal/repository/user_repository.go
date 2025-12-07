@@ -97,8 +97,8 @@ func (r *userRepository) UpdateUserProfile(ctx context.Context, userID string, u
 	}
 
 	// Only update fields that are provided (not nil)
-	if updates.DisplayName != nil {
-		updateDoc["display_name"] = *updates.DisplayName
+	if updates.Username != nil {
+		updateDoc["username"] = *updates.Username
 	}
 	if updates.FirstName != nil {
 		updateDoc["first_name"] = *updates.FirstName
@@ -106,20 +106,23 @@ func (r *userRepository) UpdateUserProfile(ctx context.Context, userID string, u
 	if updates.LastName != nil {
 		updateDoc["last_name"] = *updates.LastName
 	}
-	if updates.ProfilePic != nil {
-		updateDoc["profile_pic"] = *updates.ProfilePic
+	if updates.AvatarUrl != nil {
+		updateDoc["avatar_url"] = *updates.AvatarUrl
 	}
-	if updates.Bio != nil {
-		updateDoc["bio"] = *updates.Bio
+	if updates.BioText != nil {
+		updateDoc["bio_text"] = *updates.BioText
 	}
-	if updates.Phone != nil {
-		updateDoc["phone"] = *updates.Phone
+	if updates.PhoneNumber != nil {
+		updateDoc["phone_number"] = *updates.PhoneNumber
 	}
-	if updates.DateOfBirth != nil {
-		updateDoc["date_of_birth"] = *updates.DateOfBirth
+	if updates.IsActive != nil {
+		updateDoc["is_active"] = *updates.IsActive
 	}
-	if updates.Location != nil {
-		updateDoc["location"] = *updates.Location
+	if updates.IsEmailVerified != nil {
+		updateDoc["is_email_verified"] = *updates.IsEmailVerified
+	}
+	if updates.IsOnboarding != nil {
+		updateDoc["is_onboarding"] = *updates.IsOnboarding
 	}
 
 	// Perform the update
