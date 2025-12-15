@@ -7,10 +7,11 @@
 
   env:
     IMAGE_NAME: rally-backend-api
-    GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
     GCP_REGION: ${{ secrets.GCP_REGION }}
     GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
     SERVICE_NAME: rally-backend-api
+    SA_EMAIL: github-actions@rally-go-6.iam.gserviceaccount.com
+    WIF_PROVIDER: projects/371906055890/locations/global/workloadIdentityPools/github/providers/github
 
   jobs:
     # 1️⃣ BUILD
@@ -87,10 +88,11 @@
             echo "=== cmd/server contents ==="
             ls -la cmd/server/
 
-        - name: Set up Google Cloud authentication
+        - name: Authenticate to Google Cloud (OIDC)
           uses: google-github-actions/auth@v2
           with:
-            credentials_json: ${{ env.GCP_SA_KEY }}
+            workload_identity_provider: ${{ env.WIF_PROVIDER }}
+            service_account: ${{ env.SA_EMAIL }}
 
         - name: Configure Docker for Artifact Registry
           run: gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev --quiet
@@ -118,7 +120,8 @@
             docker push "${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.IMAGE_NAME }}/${{ env.IMAGE_NAME }}:${GITHUB_SHA::7}"
 
         - name: Upload image info
-          run: echo "${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.IMAGE_NAME }}/${{ env.IMAGE_NAME }}" > image.txt
+          run: echo "$IMAGE_FULL" > image.txt
+
         - uses: actions/upload-artifact@v4
           with:
             name: image-info
@@ -139,15 +142,17 @@
           with:
             name: image-info
 
-        - name: Set up Google Cloud authentication
+        - name: Authenticate to Google Cloud (OIDC)
           uses: google-github-actions/auth@v2
           with:
-            credentials_json: ${{ env.GCP_SA_KEY }}
+            workload_identity_provider: ${{ env.WIF_PROVIDER }}
+            service_account: ${{ env.SA_EMAIL }}
 
         - name: Deploy to Cloud Run
           run: |
             IMAGE_FULL=$(cat image.txt)
             gcloud run deploy ${{ env.SERVICE_NAME }} \
+              --service-account=${{ env.SA_EMAIL }} \
               --image="$IMAGE_FULL" \
               --region=${{ env.GCP_REGION }} \
               --project=${{ env.GCP_PROJECT_ID }} \
@@ -156,8 +161,9 @@
               --port=8080 \
               --memory=512Mi \
               --max-instances=5 \
-              --set-env-vars=ENV=production \
-              --set-secrets=MONGODB_URI=MONGODB_URI:latest,MONGODB_DB=MONGODB_DB:latest,CLOUDINARY_URL=CLOUDINARY_URL:latest
+              --set-env-vars=ENV=production,MONGODB_DB=rally_db \
+              --set-secrets=MONGODB_URI=MONGODB_URI:latest,CLOUDINARY_URL=CLOUDINARY_URL:latest \
+              --quiet
 
     # 4️⃣ NOTIFY
     notify:
