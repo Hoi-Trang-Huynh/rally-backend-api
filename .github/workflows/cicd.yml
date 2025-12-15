@@ -155,7 +155,14 @@
               --allow-unauthenticated \
               --port=8080 \
               --memory=512Mi \
-              --max-instances=5
+              --max-instances=5 \
+              --set-env-vars \
+                ENV=production \
+              --set-secrets \
+                  MONGODB_URI=MONGODB_URI:latest,\
+                  MONGODB_DB=MONGODB_DB:latest,\
+                  CLOUDINARY_URL=CLOUDINARY_URL:latest
+
 
     # 4️⃣ NOTIFY
     notify:
