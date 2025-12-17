@@ -9,6 +9,7 @@ import (
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/middleware"
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/repository"
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/service"
+	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/utils"
 	"github.com/gofiber/fiber/v2"
     fiberSwagger "github.com/swaggo/fiber-swagger"
 	fb "firebase.google.com/go/v4"
@@ -20,7 +21,12 @@ func Setup(cfg *config.Config) *fiber.App {
 
 	fbApp := firebase.GetClient()
 
-	app, err := SetupWithDeps(userRepo, fbApp)
+	cld, err := utils.NewCloudinaryUploader(cfg.Cloudinary.URL)
+	if err != nil {
+		panic(err)
+	}
+
+	app, err := SetupWithDeps(userRepo, fbApp, cld)
 	if err != nil {
 		panic(err)
 	}
@@ -31,6 +37,7 @@ func Setup(cfg *config.Config) *fiber.App {
 func SetupWithDeps(
 	userRepo repository.UserRepository,
 	fbApp *fb.App,
+	cld *utils.CloudinaryUploader,
 ) (*fiber.App, error) {
 
 	app := fiber.New()
@@ -50,6 +57,7 @@ func SetupWithDeps(
 
 	authHandler := handler.NewAuthHandler(authService)
 	userHandler := handler.NewUserHandler(userService)
+	mediaHandler := handler.NewMediaHandler(cld)
 
 	app.Get("/swagger/*", fiberSwagger.WrapHandler)
 
@@ -65,6 +73,9 @@ func SetupWithDeps(
 	users.Get("/me/profile", userHandler.GetMyProfile)
 	users.Get("/:id/profile", userHandler.GetProfile)
 	users.Put("/:id/profile", userHandler.UpdateProfile)
+
+	media := v1.Group("/media")
+	media.Post("/sign", mediaHandler.GetUploadSignature)
 
 	return app, nil
 }
