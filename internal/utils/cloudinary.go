@@ -77,6 +77,20 @@ func (c *CloudinaryUploader) UploadImage(
 	return result.SecureURL, nil
 }
 
+func (c *CloudinaryUploader) DeleteImage(ctx context.Context, publicID string) error {
+	if publicID == "" {
+		return errors.New("publicID is required")
+	}
+
+	params := uploader.DestroyParams{
+		PublicID:     publicID,
+		ResourceType: "image",
+	}
+
+	_, err := c.cld.Upload.Destroy(ctx, params)
+	return err
+}
+
 func (c *CloudinaryUploader) GenerateUploadSignature(params map[string]interface{}) (string, error) {
 	keys := make([]string, 0, len(params))
 	for k := range params {

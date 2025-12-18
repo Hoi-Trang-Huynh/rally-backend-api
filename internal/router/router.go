@@ -57,7 +57,7 @@ func SetupWithDeps(
 
 	authHandler := handler.NewAuthHandler(authService)
 	userHandler := handler.NewUserHandler(userService)
-	mediaHandler := handler.NewMediaHandler(cld)
+	mediaHandler := handler.NewMediaHandler(cld, userService)
 
 	app.Get("/swagger/*", fiberSwagger.WrapHandler)
 
@@ -76,6 +76,7 @@ func SetupWithDeps(
 
 	media := v1.Group("/media")
 	media.Post("/sign", mediaHandler.GetUploadSignature)
+	media.Post("/verify-avatar", mediaHandler.VerifyAvatar)
 
 	return app, nil
 }

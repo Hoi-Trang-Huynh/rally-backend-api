@@ -18,10 +18,10 @@ type LoginResponse struct {
 type UserResponse struct {
 	ID          string `json:"id" example:"507f1f77bcf86cd799439011"`
 	Email       string `json:"email" example:"john@example.com"`
-	DisplayName string `json:"display_name,omitempty" example:"John Doe"`
+	Username    string `json:"username,omitempty" example:"John Doe"`
 	FirstName   string `json:"first_name,omitempty" example:"John"`
 	LastName    string `json:"last_name,omitempty" example:"Doe"`
-	ProfilePic  string `json:"profile_pic,omitempty" example:"https://example.com/profile.jpg"`
+	AvatarURL   string `json:"avatar_url,omitempty" example:"https://example.com/profile.jpg"`
 } //@name UserResponse
 
 type ErrorResponse struct {

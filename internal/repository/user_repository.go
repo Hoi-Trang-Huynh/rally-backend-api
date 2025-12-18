@@ -97,8 +97,8 @@ func (r *userRepository) UpdateUserProfile(ctx context.Context, userID string, u
 	}
 
 	// Only update fields that are provided (not nil)
-	if updates.DisplayName != nil {
-		updateDoc["display_name"] = *updates.DisplayName
+	if updates.Username != nil {
+		updateDoc["username"] = *updates.Username
 	}
 	if updates.FirstName != nil {
 		updateDoc["first_name"] = *updates.FirstName
@@ -106,8 +106,8 @@ func (r *userRepository) UpdateUserProfile(ctx context.Context, userID string, u
 	if updates.LastName != nil {
 		updateDoc["last_name"] = *updates.LastName
 	}
-	if updates.ProfilePic != nil {
-		updateDoc["profile_pic"] = *updates.ProfilePic
+	if updates.AvatarURL != nil {
+		updateDoc["avatar_url"] = *updates.AvatarURL
 	}
 	if updates.Bio != nil {
 		updateDoc["bio"] = *updates.Bio

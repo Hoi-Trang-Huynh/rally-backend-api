@@ -110,10 +110,10 @@ func (s *UserService) ConvertToProfileResponse(user *model.User) *model.ProfileR
 	return &model.ProfileResponse{
 		ID:          user.ID.Hex(), // Convert ObjectID to string
 		Email:       user.Email,
-		DisplayName: user.DisplayName,
+		Username:    user.Username,
 		FirstName:   user.FirstName,
 		LastName:    user.LastName,
-		ProfilePic:  user.ProfilePic,
+		AvatarURL:   user.AvatarURL,
 		Bio:         user.Bio,
 		Phone:       user.Phone,
 		DateOfBirth: user.DateOfBirth,
