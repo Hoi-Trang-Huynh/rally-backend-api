@@ -51,8 +51,8 @@ The user profile includes the following fields:
 - `firstName` - First name
 - `lastName` - Last name
 - `avatarUrl` - Profile picture URL
-- `bio` - User biography
-- `phone` - Phone number
+- `bioText` - User biography
+- `phoneNumber` - Phone number
 - `dateOfBirth` - Date of birth
 - `location` - User location
 - `createdAt` - Account creation timestamp

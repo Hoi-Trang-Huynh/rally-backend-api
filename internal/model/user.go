@@ -12,9 +12,9 @@ type User struct {
 	Username    string             `json:"username" bson:"username"`
 	FirstName   string             `json:"firstName" bson:"first_name"`
 	LastName    string             `json:"lastName" bson:"last_name"`
-	AvatarURL   string             `json:"avatarUrl" bson:"avatar_url"`
-	Bio         string             `json:"bio" bson:"bio"`
-	Phone       string             `json:"phone" bson:"phone"`
+	AvatarUrl   string             `json:"avatarUrl" bson:"avatar_url"`
+	BioText         string             `json:"bioText" bson:"bio_text"`
+	PhoneNumber      string             `json:"phoneNumber" bson:"phone_number"`
 	DateOfBirth *time.Time         `json:"dateOfBirth" bson:"date_of_birth"`
 	Location    string             `json:"location" bson:"location"`
 	CreatedAt   time.Time          `json:"createdAt" bson:"created_at"`
@@ -26,9 +26,9 @@ type ProfileUpdateRequest struct {
 	Username *string    `json:"username,omitempty"`
 	FirstName   *string    `json:"firstName,omitempty"`
 	LastName    *string    `json:"lastName,omitempty"`
-	AvatarURL  *string    `json:"avatarUrl,omitempty"`
-	Bio         *string    `json:"bio,omitempty"`
-	Phone       *string    `json:"phone,omitempty"`
+	AvatarUrl  *string    `json:"avatarUrl,omitempty"`
+	BioText         *string    `json:"bioText,omitempty"`
+	PhoneNumber      *string    `json:"phoneNumber,omitempty"`
 	DateOfBirth *time.Time `json:"dateOfBirth,omitempty"`
 	Location    *string    `json:"location,omitempty"`
 } //@name ProfileUpdateRequest
@@ -40,9 +40,9 @@ type ProfileResponse struct {
 	Username    string     `json:"username,omitempty" example:"John Doe"`
 	FirstName   string     `json:"firstName,omitempty" example:"John"`
 	LastName    string     `json:"lastName,omitempty" example:"Doe"`
-	AvatarURL   string     `json:"avatarUrl,omitempty" example:"https://example.com/profile.jpg"`
-	Bio         string     `json:"bio,omitempty" example:"Software developer passionate about rally racing"`
-	Phone       string     `json:"phone,omitempty" example:"+1234567890"`
+	AvatarUrl   string     `json:"avatarUrl,omitempty" example:"https://example.com/profile.jpg"`
+	BioText         string     `json:"bioText,omitempty" example:"Software developer passionate about rally racing"`
+	PhoneNumber      string     `json:"phoneNumber,omitempty" example:"+1234567890"`
 	DateOfBirth *time.Time `json:"dateOfBirth,omitempty" example:"1990-01-15T00:00:00Z"`
 	Location    string     `json:"location,omitempty" example:"San Francisco, CA"`
 	CreatedAt   time.Time  `json:"createdAt" example:"2024-01-15T10:30:00Z"`

@@ -26,7 +26,7 @@ func convertToUserResponse(user *model.User) *model.UserResponse {
 		Email:       user.Email,
 		FirstName:   user.FirstName,
 		LastName:    user.LastName,
-		AvatarURL:  user.AvatarURL,
+		AvatarUrl:  user.AvatarUrl,
 	}
 }
 

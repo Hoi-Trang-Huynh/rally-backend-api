@@ -106,14 +106,14 @@ func (r *userRepository) UpdateUserProfile(ctx context.Context, userID string, u
 	if updates.LastName != nil {
 		updateDoc["last_name"] = *updates.LastName
 	}
-	if updates.AvatarURL != nil {
-		updateDoc["avatar_url"] = *updates.AvatarURL
+	if updates.AvatarUrl != nil {
+		updateDoc["avatar_url"] = *updates.AvatarUrl
 	}
-	if updates.Bio != nil {
-		updateDoc["bio"] = *updates.Bio
+	if updates.BioText != nil {
+		updateDoc["bio_text"] = *updates.BioText
 	}
-	if updates.Phone != nil {
-		updateDoc["phone"] = *updates.Phone
+	if updates.PhoneNumber!= nil {
+		updateDoc["phone_number"] = *updates.PhoneNumber
 	}
 	if updates.DateOfBirth != nil {
 		updateDoc["date_of_birth"] = *updates.DateOfBirth

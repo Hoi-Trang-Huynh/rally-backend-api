@@ -24,7 +24,7 @@ func NewMediaHandler(uploader *utils.CloudinaryUploader, userService *service.Us
 
 type VerifyAvatarRequest struct {
 	PublicID string `json:"public_id"`
-	AvatarURL string `json:"avatar_url"`
+	AvatarUrl string `json:"avatar_url"`
 }
 
 // VerifyAvatar godoc
@@ -63,7 +63,7 @@ func (h *MediaHandler) VerifyAvatar(c *fiber.Ctx) error {
 		})
 	}
 
-	if req.PublicID == "" || req.AvatarURL == "" {
+	if req.PublicID == "" || req.AvatarUrl == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "public_id and avatar_url are required",
 		})
@@ -82,7 +82,7 @@ func (h *MediaHandler) VerifyAvatar(c *fiber.Ctx) error {
 
 	// Update user profile with new avatar URL
 	updateReq := &model.ProfileUpdateRequest{
-		AvatarURL: &req.AvatarURL,
+		AvatarUrl: &req.AvatarUrl,
 	}
 
 	_, err = h.userService.UpdateUserProfile(ctx, user.ID.Hex(), updateReq)
@@ -101,7 +101,7 @@ func (h *MediaHandler) VerifyAvatar(c *fiber.Ctx) error {
 
 	return c.JSON(fiber.Map{
 		"message": "Avatar updated successfully",
-		"url":     req.AvatarURL,
+		"url":     req.AvatarUrl,
 	})
 }
 
