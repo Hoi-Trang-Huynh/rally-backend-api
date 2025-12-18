@@ -47,12 +47,12 @@ The user profile includes the following fields:
 
 - `id` - Unique user identifier
 - `email` - User email (from Firebase)
-- `displayName` - Display name
+- `username` - User username
 - `firstName` - First name
 - `lastName` - Last name
-- `profilePic` - Profile picture URL
-- `bio` - User biography
-- `phone` - Phone number
+- `avatarUrl` - Profile picture URL
+- `bioText` - User biography
+- `phoneNumber` - Phone number
 - `dateOfBirth` - Date of birth
 - `location` - User location
 - `createdAt` - Account creation timestamp

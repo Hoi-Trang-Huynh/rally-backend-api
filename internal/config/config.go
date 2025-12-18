@@ -8,8 +8,9 @@ import (
 
 type Config struct {
 	Server   ServerConfig
-	Database DatabaseConfig
-	Firebase FirebaseConfig
+	Database   DatabaseConfig
+	Firebase   FirebaseConfig
+	Cloudinary CloudinaryConfig
 }
 
 type ServerConfig struct {
@@ -24,6 +25,10 @@ type DatabaseConfig struct {
 
 type FirebaseConfig struct {
 	CredentialsPath string
+}
+
+type CloudinaryConfig struct {
+	URL string
 }
 
 // Load loads configuration from .env file and environment variables
@@ -44,11 +49,14 @@ func Load() *Config {
 		},
 		Database: DatabaseConfig{
 			MONGODB_URI: getEnv("MONGODB_URI", ""),
-			MONGODB_DB: getEnv("MONGODB_DB", "rally_db"),
+			MONGODB_DB:  getEnv("MONGODB_DB", "rally_db"),
 		},
 		Firebase: FirebaseConfig{
 			// In Cloud Run, this should be left empty ("")
 			CredentialsPath: getEnv("FIREBASE_CREDENTIALS_PATH", ""),
+		},
+		Cloudinary: CloudinaryConfig{
+			URL: getEnv("CLOUDINARY_URL", ""),
 		},
 	}
 
