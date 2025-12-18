@@ -112,14 +112,17 @@ func (r *userRepository) UpdateUserProfile(ctx context.Context, userID string, u
 	if updates.BioText != nil {
 		updateDoc["bio_text"] = *updates.BioText
 	}
-	if updates.PhoneNumber!= nil {
+	if updates.PhoneNumber != nil {
 		updateDoc["phone_number"] = *updates.PhoneNumber
 	}
-	if updates.DateOfBirth != nil {
-		updateDoc["date_of_birth"] = *updates.DateOfBirth
+	if updates.IsActive != nil {
+		updateDoc["is_active"] = *updates.IsActive
 	}
-	if updates.Location != nil {
-		updateDoc["location"] = *updates.Location
+	if updates.IsEmailVerified != nil {
+		updateDoc["is_email_verified"] = *updates.IsEmailVerified
+	}
+	if updates.IsOnboarding != nil {
+		updateDoc["is_onboarding"] = *updates.IsOnboarding
 	}
 
 	// Perform the update

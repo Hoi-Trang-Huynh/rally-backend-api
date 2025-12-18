@@ -29,38 +29,41 @@ func NewAuthService(firebaseApp *firebase.App, userRepo repository.UserRepositor
 	}, nil
 }
 
-func (s *AuthService) RegisterOrLogin(ctx context.Context, idToken string) (*model.User, bool, error) {
+func (s *AuthService) RegisterOrLogin(ctx context.Context, idToken string) (*model.User, error) {
 	// Verify the Firebase ID token
 	token, err := s.firebaseAuth.VerifyIDToken(ctx, idToken)
 	if err != nil {
-		return nil, false, errors.New("invalid or expired Firebase token")
+		return nil, errors.New("invalid or expired Firebase token")
 	}
 
 	// Extract email from token
 	email, ok := token.Claims["email"].(string)
 	if !ok || email == "" {
-		return nil, false, errors.New("email not found in token claims")
+		return nil, errors.New("email not found in token claims")
 	}
 
 	// Check if user exists
 	existingUser, err := s.userRepo.GetUserByFirebaseUID(ctx, token.UID)
 	if err == nil && existingUser != nil {
 		// User exists, return it
-		return existingUser, false, nil
+		return existingUser, nil
 	}
 
 	// User doesn't exist, create new user
 	newUser := &model.User{
-		ID:          primitive.NewObjectID(), // MongoDB will generate this automatically in CreateUser if zero
-		FirebaseUID: token.UID,
-		Email:       email,
+		ID:              primitive.NewObjectID(), // MongoDB will generate this automatically in CreateUser if zero
+		FirebaseUID:     token.UID,
+		Email:           email,
+		IsActive:        true,
+		IsEmailVerified: false,
+		IsOnboarding:    true,
 	}
 
 	if err := s.userRepo.CreateUser(ctx, newUser); err != nil {
-		return nil, false, fmt.Errorf("failed to create user: %w", err)
+		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
 
-	return newUser, true, nil
+	return newUser, nil
 }
 
 func (s *AuthService) Login(ctx context.Context, idToken string) (*model.User, error) {
