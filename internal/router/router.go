@@ -1,6 +1,7 @@
 package router
 
 import (
+	fb "firebase.google.com/go/v4"
 	_ "github.com/Hoi-Trang-Huynh/rally-backend-api/api/docs"
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/config"
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/handler"
@@ -11,8 +12,7 @@ import (
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/service"
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/utils"
 	"github.com/gofiber/fiber/v2"
-    fiberSwagger "github.com/swaggo/fiber-swagger"
-	fb "firebase.google.com/go/v4"
+	fiberSwagger "github.com/swaggo/fiber-swagger"
 )
 
 func Setup(cfg *config.Config) *fiber.App {
@@ -68,6 +68,8 @@ func SetupWithDeps(
 	auth := v1.Group("/auth")
 	auth.Post("/register", authHandler.RegisterOrLogin)
 	auth.Post("/login", authHandler.Login)
+	auth.Get("/check-email", authHandler.CheckEmailAvailability)
+	auth.Get("/check-username", authHandler.CheckUsernameAvailability)
 
 	users := v1.Group("/user")
 	users.Get("/me/profile", userHandler.GetMyProfile)
@@ -80,4 +82,3 @@ func SetupWithDeps(
 
 	return app, nil
 }
-

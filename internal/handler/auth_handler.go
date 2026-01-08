@@ -126,3 +126,81 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 		User:    convertToUserResponse(user),
 	})
 }
+
+// CheckEmailAvailability godoc
+// @Summary Check if email is available
+// @Description Check if an email address is already registered
+// @Tags Authentication
+// @ID checkEmailAvailability
+// @Produce json
+// @Param email query string true "Email to check"
+// @Success 200 {object} model.AvailabilityResponse
+// @Failure 400 {object} model.ErrorResponse
+// @Router /auth/check-email [get]
+func (h *AuthHandler) CheckEmailAvailability(c *fiber.Ctx) error {
+	email := c.Query("email")
+	if email == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(model.ErrorResponse{
+			Message: "Email query parameter is required",
+		})
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	available, err := h.authService.CheckEmailAvailability(ctx, email)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(model.ErrorResponse{
+			Message: err.Error(),
+		})
+	}
+
+	message := "Email is available"
+	if !available {
+		message = "Email is already registered"
+	}
+
+	return c.Status(fiber.StatusOK).JSON(model.AvailabilityResponse{
+		Available: available,
+		Message:   message,
+	})
+}
+
+// CheckUsernameAvailability godoc
+// @Summary Check if username is available
+// @Description Check if a username is already taken
+// @Tags Authentication
+// @ID checkUsernameAvailability
+// @Produce json
+// @Param username query string true "Username to check"
+// @Success 200 {object} model.AvailabilityResponse
+// @Failure 400 {object} model.ErrorResponse
+// @Router /auth/check-username [get]
+func (h *AuthHandler) CheckUsernameAvailability(c *fiber.Ctx) error {
+	username := c.Query("username")
+	if username == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(model.ErrorResponse{
+			Message: "Username query parameter is required",
+		})
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	available, err := h.authService.CheckUsernameAvailability(ctx, username)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(model.ErrorResponse{
+			Message: err.Error(),
+		})
+	}
+
+	message := "Username is available"
+	if !available {
+		message = "Username is already taken"
+	}
+
+	return c.Status(fiber.StatusOK).JSON(model.AvailabilityResponse{
+		Available: available,
+		Message:   message,
+	})
+}
