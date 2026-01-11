@@ -73,6 +73,7 @@ func SetupWithDeps(
 
 	users := v1.Group("/user")
 	users.Get("/me/profile", userHandler.GetMyProfile)
+	users.Get("/me/profile/details", userHandler.GetMyProfileDetails)
 	users.Get("/:id/profile", userHandler.GetProfile)
 	users.Put("/:id/profile", userHandler.UpdateProfile)
 
