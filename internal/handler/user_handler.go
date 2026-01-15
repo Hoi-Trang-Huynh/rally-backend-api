@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/model"
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/service"
+	"github.com/gofiber/fiber/v2"
 )
 
 type UserHandler struct {
@@ -191,4 +191,55 @@ func (h *UserHandler) GetMyProfile(c *fiber.Ctx) error {
 	// Convert to response format
 	profile := h.userService.ConvertToProfileResponse(user)
 	return c.Status(fiber.StatusOK).JSON(profile)
+}
+
+// GetMyProfileDetails godoc
+// @Summary Get current user's profile details
+// @Description Get detailed profile information for the profile page view (bio, etc.)
+// @Tags User Profile
+// @ID getMyProfileDetails
+// @Accept json
+// @Produce json
+// @Param Authorization header string true "Bearer Firebase ID Token"
+// @Success 200 {object} model.ProfileDetailsResponse
+// @Failure 401 {object} model.ErrorResponse "Unauthorized"
+// @Failure 404 {object} model.ErrorResponse "User not found"
+// @Router /user/me/profile/details [get]
+func (h *UserHandler) GetMyProfileDetails(c *fiber.Ctx) error {
+	// Get Firebase token from Authorization header
+	authHeader := c.Get("Authorization")
+	if authHeader == "" {
+		return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
+			Message: "Authorization header is required",
+		})
+	}
+
+	// Extract token from "Bearer <token>" format
+	if len(authHeader) < 7 || authHeader[:7] != "Bearer " {
+		return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
+			Message: "Invalid authorization format. Use 'Bearer <token>'",
+		})
+	}
+	idToken := authHeader[7:]
+
+	// Create context with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Get user by Firebase token
+	user, err := h.userService.GetUserProfileByToken(ctx, idToken)
+	if err != nil {
+		if err.Error() == "user not found" {
+			return c.Status(fiber.StatusNotFound).JSON(model.ErrorResponse{
+				Message: "User not found",
+			})
+		}
+		return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
+			Message: err.Error(),
+		})
+	}
+
+	// Convert to profile details response format
+	details := h.userService.ConvertToProfileDetailsResponse(user)
+	return c.Status(fiber.StatusOK).JSON(details)
 }

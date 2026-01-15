@@ -105,7 +105,7 @@ func (s *UserService) ValidateUserOwnership(ctx context.Context, idToken, userID
 	return nil
 }
 
-// ConvertToProfileResponse converts User model to ProfileResponse
+// ConvertToProfileResponse converts User model to ProfileResponse (for syncing)
 func (s *UserService) ConvertToProfileResponse(user *model.User) *model.ProfileResponse {
 	return &model.ProfileResponse{
 		ID:              user.ID.Hex(), // Convert ObjectID to string
@@ -114,12 +114,18 @@ func (s *UserService) ConvertToProfileResponse(user *model.User) *model.ProfileR
 		FirstName:       user.FirstName,
 		LastName:        user.LastName,
 		AvatarUrl:       user.AvatarUrl,
-		BioText:         user.BioText,
-		PhoneNumber:     user.PhoneNumber,
 		CreatedAt:       user.CreatedAt,
 		UpdatedAt:       user.UpdatedAt,
 		IsActive:        user.IsActive,
 		IsEmailVerified: user.IsEmailVerified,
 		IsOnboarding:    user.IsOnboarding,
+	}
+}
+
+// ConvertToProfileDetailsResponse converts User model to ProfileDetailsResponse (for profile page)
+func (s *UserService) ConvertToProfileDetailsResponse(user *model.User) *model.ProfileDetailsResponse {
+	return &model.ProfileDetailsResponse{
+		ID:      user.ID.Hex(),
+		BioText: user.BioText,
 	}
 }

@@ -81,3 +81,21 @@ func (s *AuthService) Login(ctx context.Context, idToken string) (*model.User, e
 
 	return user, nil
 }
+
+// CheckEmailAvailability checks if an email is available for registration
+func (s *AuthService) CheckEmailAvailability(ctx context.Context, email string) (bool, error) {
+	exists, err := s.userRepo.ExistsEmail(ctx, email)
+	if err != nil {
+		return false, fmt.Errorf("failed to check email availability: %w", err)
+	}
+	return !exists, nil
+}
+
+// CheckUsernameAvailability checks if a username is available
+func (s *AuthService) CheckUsernameAvailability(ctx context.Context, username string) (bool, error) {
+	exists, err := s.userRepo.ExistsUsername(ctx, username)
+	if err != nil {
+		return false, fmt.Errorf("failed to check username availability: %w", err)
+	}
+	return !exists, nil
+}

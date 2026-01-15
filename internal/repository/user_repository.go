@@ -16,6 +16,8 @@ type UserRepository interface {
 	GetUserByID(ctx context.Context, userID string) (*model.User, error)
 	CreateUser(ctx context.Context, user *model.User) error
 	UpdateUserProfile(ctx context.Context, userID string, updates *model.ProfileUpdateRequest) (*model.User, error)
+	ExistsEmail(ctx context.Context, email string) (bool, error)
+	ExistsUsername(ctx context.Context, username string) (bool, error)
 }
 
 type userRepository struct {
@@ -137,4 +139,22 @@ func (r *userRepository) UpdateUserProfile(ctx context.Context, userID string, u
 
 	// Return updated user
 	return r.GetUserByID(ctx, userID)
+}
+
+// ExistsEmail checks if an email already exists in the database
+func (r *userRepository) ExistsEmail(ctx context.Context, email string) (bool, error) {
+	count, err := r.collection.CountDocuments(ctx, bson.M{"email": email})
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+// ExistsUsername checks if a username already exists in the database
+func (r *userRepository) ExistsUsername(ctx context.Context, username string) (bool, error) {
+	count, err := r.collection.CountDocuments(ctx, bson.M{"username": username})
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
 }

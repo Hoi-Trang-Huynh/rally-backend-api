@@ -36,7 +36,7 @@ type ProfileUpdateRequest struct {
 	IsOnboarding    *bool   `json:"isOnboarding,omitempty"`
 } //@name ProfileUpdateRequest
 
-// ProfileResponse represents the user profile response
+// ProfileResponse represents the user profile response (for syncing)
 type ProfileResponse struct {
 	ID              string    `json:"id" example:"507f1f77bcf86cd799439011"`
 	Email           string    `json:"email" example:"john@example.com"`
@@ -44,11 +44,15 @@ type ProfileResponse struct {
 	FirstName       string    `json:"firstName,omitempty" example:"John"`
 	LastName        string    `json:"lastName,omitempty" example:"Doe"`
 	AvatarUrl       string    `json:"avatarUrl,omitempty" example:"https://example.com/avatar.jpg"`
-	BioText         string    `json:"bioText,omitempty" example:"Software developer passionate about rally racing"`
-	PhoneNumber     string    `json:"phoneNumber,omitempty" example:"+1234567890"`
 	CreatedAt       time.Time `json:"createdAt" example:"2024-01-15T10:30:00Z"`
 	UpdatedAt       time.Time `json:"updatedAt" example:"2024-01-15T10:30:00Z"`
 	IsActive        bool      `json:"isActive" example:"true"`
 	IsEmailVerified bool      `json:"isEmailVerified" example:"true"`
 	IsOnboarding    bool      `json:"isOnboarding" example:"false"`
 } //@name ProfileResponse
+
+// ProfileDetailsResponse represents the profile details for profile page view
+type ProfileDetailsResponse struct {
+	ID      string `json:"id" example:"507f1f77bcf86cd799439011"`
+	BioText string `json:"bioText,omitempty" example:"Software developer passionate about rally racing"`
+} //@name ProfileDetailsResponse

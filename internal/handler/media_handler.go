@@ -133,7 +133,6 @@ func (h *MediaHandler) GetUploadSignature(c *fiber.Ctx) error {
 	timestamp := time.Now().Unix()
 	params := map[string]interface{}{
 		"timestamp":     timestamp,
-		"max_file_size": 10 * 1024 * 1024,
 	}
 
 	if req.Folder != "" {

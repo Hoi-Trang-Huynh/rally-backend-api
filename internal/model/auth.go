@@ -29,3 +29,8 @@ type UserResponse struct {
 type ErrorResponse struct {
 	Message string `json:"message" example:"Invalid email or password"`
 } //@name ErrorResponse
+
+type AvailabilityResponse struct {
+	Available bool   `json:"available" example:"true"`
+	Message   string `json:"message" example:"Email is available"`
+} //@name AvailabilityResponse
