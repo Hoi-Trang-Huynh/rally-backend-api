@@ -88,6 +88,8 @@ func SetupWithDeps(
 	users.Post("/:id/follow", followHandler.FollowUser)
 	users.Delete("/:id/follow", followHandler.UnfollowUser)
 	users.Get("/:id/follow/status", followHandler.GetFollowStatus)
+	users.Get("/:id/followers", followHandler.GetFollowersList)
+	users.Get("/:id/following", followHandler.GetFollowingList)
 
 	media := v1.Group("/media")
 	media.Post("/sign", mediaHandler.GetUploadSignature)

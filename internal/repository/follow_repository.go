@@ -9,14 +9,15 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type FollowRepository interface {
 	CreateFollow(ctx context.Context, followerID, followingID primitive.ObjectID) (*model.Follow, error)
 	DeleteFollow(ctx context.Context, followerID, followingID primitive.ObjectID) error
 	GetFollow(ctx context.Context, followerID, followingID primitive.ObjectID) (*model.Follow, error)
-	GetFollowers(ctx context.Context, userID primitive.ObjectID, limit, offset int) ([]*model.Follow, error)
-	GetFollowing(ctx context.Context, userID primitive.ObjectID, limit, offset int) ([]*model.Follow, error)
+	GetFollowers(ctx context.Context, userID primitive.ObjectID, page, pageSize int) ([]*model.Follow, int64, error)
+	GetFollowing(ctx context.Context, userID primitive.ObjectID, page, pageSize int) ([]*model.Follow, int64, error)
 }
 
 type followRepository struct {
@@ -86,34 +87,70 @@ func (r *followRepository) GetFollow(ctx context.Context, followerID, followingI
 	return &follow, nil
 }
 
-// GetFollowers retrieves users who follow the given user
-func (r *followRepository) GetFollowers(ctx context.Context, userID primitive.ObjectID, limit, offset int) ([]*model.Follow, error) {
-	cursor, err := r.collection.Find(ctx, bson.M{"following_id": userID})
+// GetFollowers retrieves users who follow the given user with pagination
+func (r *followRepository) GetFollowers(ctx context.Context, userID primitive.ObjectID, page, pageSize int) ([]*model.Follow, int64, error) {
+	filter := bson.M{"following_id": userID}
+
+	// Get total count
+	total, err := r.collection.CountDocuments(ctx, filter)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
+	}
+
+	// Calculate skip
+	skip := int64((page - 1) * pageSize)
+	limit := int64(pageSize)
+
+	cursor, err := r.collection.Find(ctx, filter,
+		&options.FindOptions{
+			Skip:  &skip,
+			Limit: &limit,
+			Sort:  bson.M{"created_at": -1}, // Most recent first
+		},
+	)
+	if err != nil {
+		return nil, 0, err
 	}
 	defer cursor.Close(ctx)
 
 	var follows []*model.Follow
 	if err := cursor.All(ctx, &follows); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
-	return follows, nil
+	return follows, total, nil
 }
 
-// GetFollowing retrieves users that the given user follows
-func (r *followRepository) GetFollowing(ctx context.Context, userID primitive.ObjectID, limit, offset int) ([]*model.Follow, error) {
-	cursor, err := r.collection.Find(ctx, bson.M{"follower_id": userID})
+// GetFollowing retrieves users that the given user follows with pagination
+func (r *followRepository) GetFollowing(ctx context.Context, userID primitive.ObjectID, page, pageSize int) ([]*model.Follow, int64, error) {
+	filter := bson.M{"follower_id": userID}
+
+	// Get total count
+	total, err := r.collection.CountDocuments(ctx, filter)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
+	}
+
+	// Calculate skip
+	skip := int64((page - 1) * pageSize)
+	limit := int64(pageSize)
+
+	cursor, err := r.collection.Find(ctx, filter,
+		&options.FindOptions{
+			Skip:  &skip,
+			Limit: &limit,
+			Sort:  bson.M{"created_at": -1}, // Most recent first
+		},
+	)
+	if err != nil {
+		return nil, 0, err
 	}
 	defer cursor.Close(ctx)
 
 	var follows []*model.Follow
 	if err := cursor.All(ctx, &follows); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
-	return follows, nil
+	return follows, total, nil
 }

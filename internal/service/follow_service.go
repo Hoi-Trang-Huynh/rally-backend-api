@@ -217,3 +217,115 @@ func (s *FollowService) GetUserPublicProfile(ctx context.Context, userID string)
 		FollowingCount: user.FollowingCount,
 	}, nil
 }
+
+// GetFollowersList retrieves the list of users who follow the given user
+func (s *FollowService) GetFollowersList(ctx context.Context, userID string, page, pageSize int) (*model.FollowListResponse, error) {
+	// Validate pagination
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 20
+	}
+	if pageSize > 50 {
+		pageSize = 50
+	}
+
+	// Convert user ID to ObjectID
+	userObjID, err := primitive.ObjectIDFromHex(userID)
+	if err != nil {
+		return nil, errors.New("invalid user ID")
+	}
+
+	// Get followers from repository
+	follows, total, err := s.followRepo.GetFollowers(ctx, userObjID, page, pageSize)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get followers: %w", err)
+	}
+
+	// Fetch user details for each follower
+	users := make([]model.FollowUserItem, 0, len(follows))
+	for _, follow := range follows {
+		user, err := s.userRepo.GetUserByID(ctx, follow.FollowerID.Hex())
+		if err != nil || user == nil {
+			continue // Skip if user not found
+		}
+		users = append(users, model.FollowUserItem{
+			ID:        user.ID.Hex(),
+			Username:  user.Username,
+			FirstName: user.FirstName,
+			LastName:  user.LastName,
+			AvatarUrl: user.AvatarUrl,
+		})
+	}
+
+	// Calculate total pages
+	totalPages := int(total) / pageSize
+	if int(total)%pageSize > 0 {
+		totalPages++
+	}
+
+	return &model.FollowListResponse{
+		Users:      users,
+		Total:      total,
+		Page:       page,
+		PageSize:   pageSize,
+		TotalPages: totalPages,
+	}, nil
+}
+
+// GetFollowingList retrieves the list of users that the given user follows
+func (s *FollowService) GetFollowingList(ctx context.Context, userID string, page, pageSize int) (*model.FollowListResponse, error) {
+	// Validate pagination
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 20
+	}
+	if pageSize > 50 {
+		pageSize = 50
+	}
+
+	// Convert user ID to ObjectID
+	userObjID, err := primitive.ObjectIDFromHex(userID)
+	if err != nil {
+		return nil, errors.New("invalid user ID")
+	}
+
+	// Get following from repository
+	follows, total, err := s.followRepo.GetFollowing(ctx, userObjID, page, pageSize)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get following: %w", err)
+	}
+
+	// Fetch user details for each followed user
+	users := make([]model.FollowUserItem, 0, len(follows))
+	for _, follow := range follows {
+		user, err := s.userRepo.GetUserByID(ctx, follow.FollowingID.Hex())
+		if err != nil || user == nil {
+			continue // Skip if user not found
+		}
+		users = append(users, model.FollowUserItem{
+			ID:        user.ID.Hex(),
+			Username:  user.Username,
+			FirstName: user.FirstName,
+			LastName:  user.LastName,
+			AvatarUrl: user.AvatarUrl,
+		})
+	}
+
+	// Calculate total pages
+	totalPages := int(total) / pageSize
+	if int(total)%pageSize > 0 {
+		totalPages++
+	}
+
+	return &model.FollowListResponse{
+		Users:      users,
+		Total:      total,
+		Page:       page,
+		PageSize:   pageSize,
+		TotalPages: totalPages,
+	}, nil
+}

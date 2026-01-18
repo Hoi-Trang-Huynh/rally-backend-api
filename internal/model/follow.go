@@ -26,3 +26,21 @@ type FollowResponse struct {
 type FollowStatusResponse struct {
 	IsFollowing bool `json:"isFollowing" example:"true"`
 } //@name FollowStatusResponse
+
+// FollowUserItem represents a user in followers/following list
+type FollowUserItem struct {
+	ID        string `json:"id" example:"507f1f77bcf86cd799439011"`
+	Username  string `json:"username" example:"johndoe"`
+	FirstName string `json:"firstName,omitempty" example:"John"`
+	LastName  string `json:"lastName,omitempty" example:"Doe"`
+	AvatarUrl string `json:"avatarUrl,omitempty" example:"https://example.com/avatar.jpg"`
+} //@name FollowUserItem
+
+// FollowListResponse represents a paginated list of followers or following
+type FollowListResponse struct {
+	Users      []FollowUserItem `json:"users"`
+	Total      int64            `json:"total" example:"100"`
+	Page       int              `json:"page" example:"1"`
+	PageSize   int              `json:"pageSize" example:"20"`
+	TotalPages int              `json:"totalPages" example:"5"`
+} //@name FollowListResponse

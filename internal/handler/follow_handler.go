@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"strconv"
 	"time"
 
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/model"
@@ -248,6 +249,120 @@ func (h *FollowHandler) GetUserPublicProfile(c *fiber.Ctx) error {
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(model.ErrorResponse{
 			Message: "Failed to get user profile",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(response)
+}
+
+// GetFollowersList godoc
+// @Summary Get user's followers list
+// @Description Get a paginated list of users who follow the specified user
+// @Tags Follow
+// @ID getFollowersList
+// @Accept json
+// @Produce json
+// @Param id path string true "User ID"
+// @Param page query int false "Page number (default: 1)"
+// @Param pageSize query int false "Number of results per page (default: 20, max: 50)"
+// @Success 200 {object} model.FollowListResponse
+// @Failure 400 {object} model.ErrorResponse "Invalid user ID"
+// @Router /user/{id}/followers [get]
+func (h *FollowHandler) GetFollowersList(c *fiber.Ctx) error {
+	userID := c.Params("id")
+	if userID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(model.ErrorResponse{
+			Message: "User ID is required",
+		})
+	}
+
+	// Get pagination parameters
+	page := 1
+	pageSize := 20
+
+	if pageStr := c.Query("page"); pageStr != "" {
+		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
+			page = p
+		}
+	}
+
+	if pageSizeStr := c.Query("pageSize"); pageSizeStr != "" {
+		if ps, err := strconv.Atoi(pageSizeStr); err == nil && ps > 0 {
+			pageSize = ps
+		}
+	}
+
+	// Create context with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Get followers list
+	response, err := h.followService.GetFollowersList(ctx, userID, page, pageSize)
+	if err != nil {
+		if err.Error() == "invalid user ID" {
+			return c.Status(fiber.StatusBadRequest).JSON(model.ErrorResponse{
+				Message: err.Error(),
+			})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(model.ErrorResponse{
+			Message: "Failed to get followers list",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(response)
+}
+
+// GetFollowingList godoc
+// @Summary Get user's following list
+// @Description Get a paginated list of users that the specified user follows
+// @Tags Follow
+// @ID getFollowingList
+// @Accept json
+// @Produce json
+// @Param id path string true "User ID"
+// @Param page query int false "Page number (default: 1)"
+// @Param pageSize query int false "Number of results per page (default: 20, max: 50)"
+// @Success 200 {object} model.FollowListResponse
+// @Failure 400 {object} model.ErrorResponse "Invalid user ID"
+// @Router /user/{id}/following [get]
+func (h *FollowHandler) GetFollowingList(c *fiber.Ctx) error {
+	userID := c.Params("id")
+	if userID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(model.ErrorResponse{
+			Message: "User ID is required",
+		})
+	}
+
+	// Get pagination parameters
+	page := 1
+	pageSize := 20
+
+	if pageStr := c.Query("page"); pageStr != "" {
+		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
+			page = p
+		}
+	}
+
+	if pageSizeStr := c.Query("pageSize"); pageSizeStr != "" {
+		if ps, err := strconv.Atoi(pageSizeStr); err == nil && ps > 0 {
+			pageSize = ps
+		}
+	}
+
+	// Create context with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Get following list
+	response, err := h.followService.GetFollowingList(ctx, userID, page, pageSize)
+	if err != nil {
+		if err.Error() == "invalid user ID" {
+			return c.Status(fiber.StatusBadRequest).JSON(model.ErrorResponse{
+				Message: err.Error(),
+			})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(model.ErrorResponse{
+			Message: "Failed to get following list",
 		})
 	}
 
