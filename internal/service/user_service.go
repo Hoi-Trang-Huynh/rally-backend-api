@@ -125,7 +125,54 @@ func (s *UserService) ConvertToProfileResponse(user *model.User) *model.ProfileR
 // ConvertToProfileDetailsResponse converts User model to ProfileDetailsResponse (for profile page)
 func (s *UserService) ConvertToProfileDetailsResponse(user *model.User) *model.ProfileDetailsResponse {
 	return &model.ProfileDetailsResponse{
-		ID:      user.ID.Hex(),
-		BioText: user.BioText,
+		ID:             user.ID.Hex(),
+		BioText:        user.BioText,
+		FollowersCount: user.FollowersCount,
+		FollowingCount: user.FollowingCount,
 	}
+}
+
+// SearchUsers searches for users by query string with pagination
+func (s *UserService) SearchUsers(ctx context.Context, query string, page, pageSize int) (*model.UserSearchResponse, error) {
+	// Validate pagination parameters
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 20
+	}
+	if pageSize > 50 {
+		pageSize = 50 // Max page size to prevent abuse
+	}
+
+	users, total, err := s.userRepo.SearchUsers(ctx, query, page, pageSize)
+	if err != nil {
+		return nil, fmt.Errorf("failed to search users: %w", err)
+	}
+
+	// Convert users to search results
+	results := make([]model.UserSearchResult, len(users))
+	for i, user := range users {
+		results[i] = model.UserSearchResult{
+			ID:        user.ID.Hex(),
+			Username:  user.Username,
+			FirstName: user.FirstName,
+			LastName:  user.LastName,
+			AvatarUrl: user.AvatarUrl,
+		}
+	}
+
+	// Calculate total pages
+	totalPages := int(total) / pageSize
+	if int(total)%pageSize > 0 {
+		totalPages++
+	}
+
+	return &model.UserSearchResponse{
+		Users:      results,
+		Total:      total,
+		Page:       page,
+		PageSize:   pageSize,
+		TotalPages: totalPages,
+	}, nil
 }

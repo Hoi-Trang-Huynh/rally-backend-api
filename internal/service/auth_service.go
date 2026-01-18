@@ -57,6 +57,8 @@ func (s *AuthService) RegisterOrLogin(ctx context.Context, idToken string) (*mod
 		IsActive:        true,
 		IsEmailVerified: false,
 		IsOnboarding:    true,
+		FollowersCount:  0,
+		FollowingCount:  0,
 	}
 
 	if err := s.userRepo.CreateUser(ctx, newUser); err != nil {
