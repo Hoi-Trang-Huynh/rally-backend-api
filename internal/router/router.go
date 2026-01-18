@@ -18,6 +18,7 @@ import (
 func Setup(cfg *config.Config) *fiber.App {
 	db := database.GetDB()
 	userRepo := repository.NewUserRepository(db)
+	followRepo := repository.NewFollowRepository(db)
 
 	fbApp := firebase.GetClient()
 
@@ -26,7 +27,7 @@ func Setup(cfg *config.Config) *fiber.App {
 		panic(err)
 	}
 
-	app, err := SetupWithDeps(userRepo, fbApp, cld)
+	app, err := SetupWithDeps(userRepo, followRepo, fbApp, cld)
 	if err != nil {
 		panic(err)
 	}
@@ -36,6 +37,7 @@ func Setup(cfg *config.Config) *fiber.App {
 
 func SetupWithDeps(
 	userRepo repository.UserRepository,
+	followRepo repository.FollowRepository,
 	fbApp *fb.App,
 	cld *utils.CloudinaryUploader,
 ) (*fiber.App, error) {
@@ -55,9 +57,15 @@ func SetupWithDeps(
 		return nil, err
 	}
 
+	followService, err := service.NewFollowService(fbApp, followRepo, userRepo)
+	if err != nil {
+		return nil, err
+	}
+
 	authHandler := handler.NewAuthHandler(authService)
 	userHandler := handler.NewUserHandler(userService)
 	mediaHandler := handler.NewMediaHandler(cld, userService)
+	followHandler := handler.NewFollowHandler(followService)
 
 	app.Get("/swagger/*", fiberSwagger.WrapHandler)
 
@@ -74,8 +82,12 @@ func SetupWithDeps(
 	users := v1.Group("/user")
 	users.Get("/me/profile", userHandler.GetMyProfile)
 	users.Get("/me/profile/details", userHandler.GetMyProfileDetails)
-	users.Get("/:id/profile", userHandler.GetProfile)
+	users.Get("/search", userHandler.SearchUsers)
+	users.Get("/:id/profile", followHandler.GetUserPublicProfile)
 	users.Put("/:id/profile", userHandler.UpdateProfile)
+	users.Post("/:id/follow", followHandler.FollowUser)
+	users.Delete("/:id/follow", followHandler.UnfollowUser)
+	users.Get("/:id/follow/status", followHandler.GetFollowStatus)
 
 	media := v1.Group("/media")
 	media.Post("/sign", mediaHandler.GetUploadSignature)

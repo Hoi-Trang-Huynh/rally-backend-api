@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"strconv"
 	"time"
 
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/model"
@@ -242,4 +243,57 @@ func (h *UserHandler) GetMyProfileDetails(c *fiber.Ctx) error {
 	// Convert to profile details response format
 	details := h.userService.ConvertToProfileDetailsResponse(user)
 	return c.Status(fiber.StatusOK).JSON(details)
+}
+
+// SearchUsers godoc
+// @Summary Search users
+// @Description Search for users by username, first name, or last name with pagination
+// @Tags User Search
+// @ID searchUsers
+// @Accept json
+// @Produce json
+// @Param q query string true "Search query (matches username, first name, or last name)"
+// @Param page query int false "Page number (default: 1)"
+// @Param pageSize query int false "Number of results per page (default: 20, max: 50)"
+// @Success 200 {object} model.UserSearchResponse
+// @Failure 400 {object} model.ErrorResponse "Invalid query parameters"
+// @Router /user/search [get]
+func (h *UserHandler) SearchUsers(c *fiber.Ctx) error {
+	// Get search query
+	query := c.Query("q")
+	if query == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(model.ErrorResponse{
+			Message: "Search query 'q' is required",
+		})
+	}
+
+	// Get pagination parameters
+	page := 1
+	pageSize := 20
+
+	if pageStr := c.Query("page"); pageStr != "" {
+		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
+			page = p
+		}
+	}
+
+	if pageSizeStr := c.Query("pageSize"); pageSizeStr != "" {
+		if ps, err := strconv.Atoi(pageSizeStr); err == nil && ps > 0 {
+			pageSize = ps
+		}
+	}
+
+	// Create context with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Search users
+	response, err := h.userService.SearchUsers(ctx, query, page, pageSize)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(model.ErrorResponse{
+			Message: "Failed to search users",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(response)
 }

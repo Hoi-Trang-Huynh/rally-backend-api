@@ -21,6 +21,8 @@ type User struct {
 	IsActive        bool               `json:"isActive" bson:"is_active"`
 	IsEmailVerified bool               `json:"isEmailVerified" bson:"is_email_verified"`
 	IsOnboarding    bool               `json:"isOnboarding" bson:"is_onboarding"`
+	FollowersCount  int                `json:"followersCount" bson:"followers_count"`
+	FollowingCount  int                `json:"followingCount" bson:"following_count"`
 }
 
 // ProfileUpdateRequest represents the request payload for updating user profile
@@ -53,6 +55,38 @@ type ProfileResponse struct {
 
 // ProfileDetailsResponse represents the profile details for profile page view
 type ProfileDetailsResponse struct {
-	ID      string `json:"id" example:"507f1f77bcf86cd799439011"`
-	BioText string `json:"bioText,omitempty" example:"Software developer passionate about rally racing"`
+	ID             string `json:"id" example:"507f1f77bcf86cd799439011"`
+	BioText        string `json:"bioText,omitempty" example:"Software developer passionate about rally racing"`
+	FollowersCount int    `json:"followersCount" example:"150"`
+	FollowingCount int    `json:"followingCount" example:"75"`
 } //@name ProfileDetailsResponse
+
+// UserPublicProfileResponse represents the public profile for viewing other users
+type UserPublicProfileResponse struct {
+	ID             string `json:"id" example:"507f1f77bcf86cd799439011"`
+	Username       string `json:"username" example:"johndoe"`
+	FirstName      string `json:"firstName,omitempty" example:"John"`
+	LastName       string `json:"lastName,omitempty" example:"Doe"`
+	AvatarUrl      string `json:"avatarUrl,omitempty" example:"https://example.com/avatar.jpg"`
+	BioText        string `json:"bioText,omitempty" example:"Software developer passionate about rally racing"`
+	FollowersCount int    `json:"followersCount" example:"150"`
+	FollowingCount int    `json:"followingCount" example:"75"`
+} //@name UserPublicProfileResponse
+
+// UserSearchResult represents a single user in search results
+type UserSearchResult struct {
+	ID        string `json:"id" example:"507f1f77bcf86cd799439011"`
+	Username  string `json:"username" example:"johndoe"`
+	FirstName string `json:"firstName,omitempty" example:"John"`
+	LastName  string `json:"lastName,omitempty" example:"Doe"`
+	AvatarUrl string `json:"avatarUrl,omitempty" example:"https://example.com/avatar.jpg"`
+} //@name UserSearchResult
+
+// UserSearchResponse represents the paginated search response
+type UserSearchResponse struct {
+	Users      []UserSearchResult `json:"users"`
+	Total      int64              `json:"total" example:"100"`
+	Page       int                `json:"page" example:"1"`
+	PageSize   int                `json:"pageSize" example:"20"`
+	TotalPages int                `json:"totalPages" example:"5"`
+} //@name UserSearchResponse
