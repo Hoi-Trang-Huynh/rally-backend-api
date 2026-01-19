@@ -13,9 +13,10 @@ import (
 )
 
 var (
-	clientInstance *mongo.Client
-	dbInstance     *mongo.Database
-	mongoOnce           sync.Once
+	clientInstance     *mongo.Client
+	dbInstance         *mongo.Database
+	internalDbInstance *mongo.Database
+	mongoOnce          sync.Once
 )
 
 func InitializeDatabase(cfg config.DatabaseConfig) error {
@@ -38,6 +39,11 @@ func InitializeDatabase(cfg config.DatabaseConfig) error {
 
 		dbInstance = clientInstance.Database(cfg.MONGODB_DB)
 		log.Printf("✅ MongoDB connected successfully (DB: %s)", cfg.MONGODB_DB)
+
+		if cfg.MONGODB_INTERNAL_DB != "" {
+			internalDbInstance = clientInstance.Database(cfg.MONGODB_INTERNAL_DB)
+			log.Printf("✅ MongoDB Internal connected successfully (DB: %s)", cfg.MONGODB_INTERNAL_DB)
+		}
 	})
 
 	return err
@@ -48,6 +54,13 @@ func GetDB() *mongo.Database {
 		log.Fatal("MongoDB not initialized. Call InitializeDatabase() first.")
 	}
 	return dbInstance
+}
+
+func GetInternalDB() *mongo.Database {
+	if internalDbInstance == nil {
+		log.Fatal("MongoDB Internal not initialized or not configured.")
+	}
+	return internalDbInstance
 }
 
 func CloseDatabase() {

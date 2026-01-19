@@ -17,8 +17,11 @@ import (
 
 func Setup(cfg *config.Config) *fiber.App {
 	db := database.GetDB()
+	internalDB := database.GetInternalDB()
+
 	userRepo := repository.NewUserRepository(db)
 	followRepo := repository.NewFollowRepository(db)
+	feedbackRepo := repository.NewFeedbackRepository(internalDB)
 
 	fbApp := firebase.GetClient()
 
@@ -27,7 +30,7 @@ func Setup(cfg *config.Config) *fiber.App {
 		panic(err)
 	}
 
-	app, err := SetupWithDeps(userRepo, followRepo, fbApp, cld)
+	app, err := SetupWithDeps(userRepo, followRepo, feedbackRepo, fbApp, cld)
 	if err != nil {
 		panic(err)
 	}
@@ -38,6 +41,7 @@ func Setup(cfg *config.Config) *fiber.App {
 func SetupWithDeps(
 	userRepo repository.UserRepository,
 	followRepo repository.FollowRepository,
+	feedbackRepo repository.FeedbackRepository,
 	fbApp *fb.App,
 	cld *utils.CloudinaryUploader,
 ) (*fiber.App, error) {
@@ -62,10 +66,13 @@ func SetupWithDeps(
 		return nil, err
 	}
 
+	feedbackService := service.NewFeedbackService(feedbackRepo)
+
 	authHandler := handler.NewAuthHandler(authService)
 	userHandler := handler.NewUserHandler(userService)
 	mediaHandler := handler.NewMediaHandler(cld, userService)
 	followHandler := handler.NewFollowHandler(followService)
+	feedbackHandler := handler.NewFeedbackHandler(feedbackService)
 
 	app.Get("/swagger/*", fiberSwagger.WrapHandler)
 
@@ -94,6 +101,11 @@ func SetupWithDeps(
 	media := v1.Group("/media")
 	media.Post("/sign", mediaHandler.GetUploadSignature)
 	media.Post("/verify-avatar", mediaHandler.VerifyAvatar)
+
+	feedback := v1.Group("/feedback")
+	feedback.Post("/", feedbackHandler.CreateFeedback)
+	feedback.Get("/", feedbackHandler.GetFeedbackList)
+	feedback.Patch("/:id/resolve", feedbackHandler.UpdateFeedbackStatus)
 
 	return app, nil
 }

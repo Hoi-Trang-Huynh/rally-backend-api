@@ -7,7 +7,7 @@ import (
 )
 
 type Config struct {
-	Server   ServerConfig
+	Server     ServerConfig
 	Database   DatabaseConfig
 	Firebase   FirebaseConfig
 	Cloudinary CloudinaryConfig
@@ -19,8 +19,9 @@ type ServerConfig struct {
 }
 
 type DatabaseConfig struct {
-	MONGODB_URI string
-	MONGODB_DB string
+	MONGODB_URI         string
+	MONGODB_DB          string
+	MONGODB_INTERNAL_DB string
 }
 
 type FirebaseConfig struct {
@@ -48,8 +49,9 @@ func Load() *Config {
 			Env:  getEnv("ENV", "development"),
 		},
 		Database: DatabaseConfig{
-			MONGODB_URI: getEnv("MONGODB_URI", ""),
-			MONGODB_DB:  getEnv("MONGODB_DB", "rally_db"),
+			MONGODB_URI:         getEnv("MONGODB_URI", ""),
+			MONGODB_DB:          getEnv("MONGODB_DB", "rally_db"),
+			MONGODB_INTERNAL_DB: getEnv("MONGODB_INTERNAL_DB", "rally_dashboard"),
 		},
 		Firebase: FirebaseConfig{
 			// In Cloud Run, this should be left empty ("")
