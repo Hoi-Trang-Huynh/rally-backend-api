@@ -79,6 +79,7 @@ func SetupWithDeps(
 	api := app.Group("/api")
 	v1 := api.Group("/v1")
 	v1.Get("/health", handler.HealthCheck)
+	v1.Get("/version", handler.VersionCheck)
 
 	auth := v1.Group("/auth")
 	auth.Post("/register", authHandler.RegisterOrLogin)
