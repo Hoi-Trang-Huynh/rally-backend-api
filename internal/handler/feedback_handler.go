@@ -19,7 +19,7 @@ func NewFeedbackHandler(service *service.FeedbackService) *FeedbackHandler {
 
 // CreateFeedback creates a new feedback entry
 // @Summary Create a new feedback
-// @Description Submit user feedback with optional image and categories
+// @Description Submit user feedback with optional attachments (max 3) and categories
 // @Tags Feedback
 // @Accept json
 // @Produce json
@@ -40,6 +40,12 @@ func (h *FeedbackHandler) CreateFeedback(c *fiber.Ctx) error {
 	if req.Username == "" || req.Comment == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Username and Comment are required",
+		})
+	}
+
+	if len(req.AttachmentURLs) > 3 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Maximum 3 attachments allowed",
 		})
 	}
 

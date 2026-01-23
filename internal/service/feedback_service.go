@@ -19,12 +19,12 @@ func NewFeedbackService(repo repository.FeedbackRepository) *FeedbackService {
 
 func (s *FeedbackService) SubmitFeedback(ctx context.Context, req model.CreateFeedbackRequest) (*model.Feedback, error) {
 	feedback := &model.Feedback{
-		Username:   req.Username,
-		AvatarUrl:  req.AvatarUrl,
-		ImageURL:   req.ImageURL,
-		Comment:    req.Comment,
-		Categories: req.Categories,
-		Resolved:   false,
+		Username:       req.Username,
+		AvatarUrl:      req.AvatarUrl,
+		AttachmentURLs: req.AttachmentURLs,
+		Comment:        req.Comment,
+		Categories:     req.Categories,
+		Resolved:       false,
 	}
 
 	err := s.repo.CreateFeedback(ctx, feedback)
