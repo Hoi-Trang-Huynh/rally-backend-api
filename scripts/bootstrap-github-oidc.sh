@@ -68,9 +68,14 @@ if ! gcloud iam workload-identity-pools providers describe "$PROVIDER_NAME" \
     --display-name="GitHub Provider" \
     --issuer-uri="https://token.actions.githubusercontent.com" \
     --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository,attribute.ref=assertion.ref,attribute.repository_owner=assertion.repository_owner" \
-    --attribute-condition="assertion.repository_owner=='$GITHUB_OWNER' && assertion.repository=='$GITHUB_OWNER/$GITHUB_REPO' && assertion.ref=='$PROTECTED_BRANCH'"
+    --attribute-condition="assertion.repository_owner=='$GITHUB_OWNER' && assertion.repository=='$GITHUB_OWNER/$GITHUB_REPO' && (assertion.ref=='$PROTECTED_BRANCH' || assertion.ref.startsWith('refs/tags/'))"
 else
-  echo "✔ Workload identity provider exists"
+  echo "🔄 Updating workload identity provider"
+  gcloud iam workload-identity-pools providers update-oidc "$PROVIDER_NAME" \
+    --project="$PROJECT_ID" \
+    --location="$LOCATION" \
+    --workload-identity-pool="$POOL_NAME" \
+    --attribute-condition="assertion.repository_owner=='$GITHUB_OWNER' && assertion.repository=='$GITHUB_OWNER/$GITHUB_REPO' && (assertion.ref=='$PROTECTED_BRANCH' || assertion.ref.startsWith('refs/tags/'))"
 fi
 
 # 5️⃣ Bind repo
