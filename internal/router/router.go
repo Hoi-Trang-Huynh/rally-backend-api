@@ -22,6 +22,10 @@ func Setup(cfg *config.Config) *fiber.App {
 	userRepo := repository.NewUserRepository(db)
 	followRepo := repository.NewFollowRepository(db)
 	feedbackRepo := repository.NewFeedbackRepository(internalDB)
+	rallyRepo := repository.NewRallyRepository(db)
+	eventRepo := repository.NewEventRepository(db)
+	activityRepo := repository.NewActivityRepository(db)
+	participantRepo := repository.NewRallyParticipantRepository(db)
 
 	fbApp := firebase.GetClient()
 
@@ -30,7 +34,7 @@ func Setup(cfg *config.Config) *fiber.App {
 		panic(err)
 	}
 
-	app, err := SetupWithDeps(userRepo, followRepo, feedbackRepo, fbApp, cld)
+	app, err := SetupWithDeps(userRepo, followRepo, feedbackRepo, rallyRepo, eventRepo, activityRepo, participantRepo, fbApp, cld)
 	if err != nil {
 		panic(err)
 	}
@@ -42,6 +46,10 @@ func SetupWithDeps(
 	userRepo repository.UserRepository,
 	followRepo repository.FollowRepository,
 	feedbackRepo repository.FeedbackRepository,
+	rallyRepo repository.RallyRepository,
+	eventRepo repository.EventRepository,
+	activityRepo repository.ActivityRepository,
+	participantRepo repository.RallyParticipantRepository,
 	fbApp *fb.App,
 	cld *utils.CloudinaryUploader,
 ) (*fiber.App, error) {
@@ -68,11 +76,35 @@ func SetupWithDeps(
 
 	feedbackService := service.NewFeedbackService(feedbackRepo)
 
+	rallyService, err := service.NewRallyService(fbApp, rallyRepo, participantRepo, userRepo)
+	if err != nil {
+		return nil, err
+	}
+
+	eventService, err := service.NewEventService(fbApp, eventRepo, rallyRepo, participantRepo, userRepo)
+	if err != nil {
+		return nil, err
+	}
+
+	activityService, err := service.NewActivityService(fbApp, activityRepo, eventRepo, participantRepo, userRepo)
+	if err != nil {
+		return nil, err
+	}
+
+	participantService, err := service.NewRallyParticipantService(fbApp, participantRepo, rallyRepo, userRepo)
+	if err != nil {
+		return nil, err
+	}
+
 	authHandler := handler.NewAuthHandler(authService)
 	userHandler := handler.NewUserHandler(userService)
 	mediaHandler := handler.NewMediaHandler(cld, userService)
 	followHandler := handler.NewFollowHandler(followService)
 	feedbackHandler := handler.NewFeedbackHandler(feedbackService)
+	rallyHandler := handler.NewRallyHandler(rallyService)
+	eventHandler := handler.NewEventHandler(eventService)
+	activityHandler := handler.NewActivityHandler(activityService)
+	participantHandler := handler.NewRallyParticipantHandler(participantService)
 
 	app.Get("/swagger/*", fiberSwagger.WrapHandler)
 
@@ -107,6 +139,23 @@ func SetupWithDeps(
 	feedback.Post("/", feedbackHandler.CreateFeedback)
 	feedback.Get("/", feedbackHandler.GetFeedbackList)
 	feedback.Patch("/:id/resolve", feedbackHandler.UpdateFeedbackStatus)
+
+	// Rally routes
+	rallies := v1.Group("/rallies")
+	rallies.Post("/", rallyHandler.CreateRally)
+	rallies.Put("/:id", rallyHandler.UpdateRally)
+	rallies.Post("/:id/events", eventHandler.CreateEvent)
+	rallies.Post("/:id/participants", participantHandler.InviteParticipant)
+	rallies.Put("/:id/participants/:participantId", participantHandler.UpdateParticipant)
+
+	// Event routes
+	events := v1.Group("/events")
+	events.Put("/:id", eventHandler.UpdateEvent)
+	events.Post("/:id/activities", activityHandler.CreateActivity)
+
+	// Activity routes
+	activities := v1.Group("/activities")
+	activities.Put("/:id", activityHandler.UpdateActivity)
 
 	return app, nil
 }
