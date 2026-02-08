@@ -44,3 +44,12 @@ type FollowListResponse struct {
 	PageSize   int              `json:"pageSize" example:"20"`
 	TotalPages int              `json:"totalPages" example:"5"`
 } //@name FollowListResponse
+
+// FriendListResponse represents a paginated list of friends (mutual follows)
+type FriendListResponse struct {
+	Users      []FollowUserItem `json:"users"`
+	Total      int64            `json:"total" example:"50"`
+	Page       int              `json:"page" example:"1"`
+	PageSize   int              `json:"pageSize" example:"20"`
+	TotalPages int              `json:"totalPages" example:"3"`
+} //@name FriendListResponse

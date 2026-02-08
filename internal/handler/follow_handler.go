@@ -368,3 +368,64 @@ func (h *FollowHandler) GetFollowingList(c *fiber.Ctx) error {
 
 	return c.Status(fiber.StatusOK).JSON(response)
 }
+
+// GetFriendsList godoc
+// @Summary Get user's friends list
+// @Description Get a paginated list of mutual friends (users who follow each other) with optional search
+// @Tags Follow
+// @ID getFriendsList
+// @Accept json
+// @Produce json
+// @Param id path string true "User ID"
+// @Param q query string false "Search query (matches username, first name, or last name)"
+// @Param page query int false "Page number (default: 1)"
+// @Param pageSize query int false "Number of results per page (default: 20, max: 50)"
+// @Success 200 {object} model.FriendListResponse
+// @Failure 400 {object} model.ErrorResponse "Invalid user ID"
+// @Router /user/{id}/friends [get]
+func (h *FollowHandler) GetFriendsList(c *fiber.Ctx) error {
+	userID := c.Params("id")
+	if userID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(model.ErrorResponse{
+			Message: "User ID is required",
+		})
+	}
+
+	// Get search query (optional)
+	query := c.Query("q")
+
+	// Get pagination parameters
+	page := 1
+	pageSize := 20
+
+	if pageStr := c.Query("page"); pageStr != "" {
+		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
+			page = p
+		}
+	}
+
+	if pageSizeStr := c.Query("pageSize"); pageSizeStr != "" {
+		if ps, err := strconv.Atoi(pageSizeStr); err == nil && ps > 0 {
+			pageSize = ps
+		}
+	}
+
+	// Create context with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Get friends list
+	response, err := h.followService.GetFriendsList(ctx, userID, query, page, pageSize)
+	if err != nil {
+		if err.Error() == "invalid user ID" {
+			return c.Status(fiber.StatusBadRequest).JSON(model.ErrorResponse{
+				Message: err.Error(),
+			})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(model.ErrorResponse{
+			Message: "Failed to get friends list",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(response)
+}

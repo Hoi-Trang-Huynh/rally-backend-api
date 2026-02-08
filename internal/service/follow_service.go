@@ -329,3 +329,59 @@ func (s *FollowService) GetFollowingList(ctx context.Context, userID string, pag
 		TotalPages: totalPages,
 	}, nil
 }
+
+// GetFriendsList retrieves the list of mutual friends for a given user with optional search
+func (s *FollowService) GetFriendsList(ctx context.Context, userID string, query string, page, pageSize int) (*model.FriendListResponse, error) {
+	// Validate pagination
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 20
+	}
+	if pageSize > 50 {
+		pageSize = 50
+	}
+
+	// Convert user ID to ObjectID
+	userObjID, err := primitive.ObjectIDFromHex(userID)
+	if err != nil {
+		return nil, errors.New("invalid user ID")
+	}
+
+	// Get friends from repository
+	follows, total, err := s.followRepo.GetFriends(ctx, userObjID, query, page, pageSize)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get friends: %w", err)
+	}
+
+	// Fetch user details for each friend
+	users := make([]model.FollowUserItem, 0, len(follows))
+	for _, follow := range follows {
+		user, err := s.userRepo.GetUserByID(ctx, follow.FollowingID.Hex())
+		if err != nil || user == nil {
+			continue // Skip if user not found
+		}
+		users = append(users, model.FollowUserItem{
+			ID:        user.ID.Hex(),
+			Username:  user.Username,
+			FirstName: user.FirstName,
+			LastName:  user.LastName,
+			AvatarUrl: user.AvatarUrl,
+		})
+	}
+
+	// Calculate total pages
+	totalPages := int(total) / pageSize
+	if int(total)%pageSize > 0 {
+		totalPages++
+	}
+
+	return &model.FriendListResponse{
+		Users:      users,
+		Total:      total,
+		Page:       page,
+		PageSize:   pageSize,
+		TotalPages: totalPages,
+	}, nil
+}
