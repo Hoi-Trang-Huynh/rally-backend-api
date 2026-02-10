@@ -77,7 +77,7 @@ func (s *ActivityService) validateRallyAccessViaEvent(ctx context.Context, userI
 	}
 
 	for _, role := range requiredRoles {
-		if participant.Role == role {
+		if string(participant.Role) == role {
 			return event, nil
 		}
 	}

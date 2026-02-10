@@ -76,7 +76,7 @@ func SetupWithDeps(
 
 	feedbackService := service.NewFeedbackService(feedbackRepo)
 
-	rallyService, err := service.NewRallyService(fbApp, rallyRepo, participantRepo, userRepo)
+	rallyService, err := service.NewRallyService(database.GetDB(), fbApp, rallyRepo, participantRepo, userRepo)
 	if err != nil {
 		return nil, err
 	}

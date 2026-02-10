@@ -73,7 +73,7 @@ func (s *EventService) validateRallyAccess(ctx context.Context, userID primitive
 	}
 
 	for _, role := range requiredRoles {
-		if participant.Role == role {
+		if string(participant.Role) == role {
 			return nil
 		}
 	}

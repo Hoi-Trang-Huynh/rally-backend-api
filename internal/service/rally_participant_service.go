@@ -70,7 +70,7 @@ func (s *RallyParticipantService) validateRallyAccess(ctx context.Context, userI
 	}
 
 	for _, role := range requiredRoles {
-		if participant.Role == role {
+		if string(participant.Role) == role {
 			return nil
 		}
 	}
@@ -118,9 +118,11 @@ func (s *RallyParticipantService) InviteParticipant(ctx context.Context, idToken
 	}
 
 	// Default role to "participant" if not specified
-	role := req.Role
-	if role == "" {
-		role = "participant"
+	var role model.ParticipantRole
+	if req.Role != nil && *req.Role != "" {
+		role = *req.Role
+	} else {
+		role = model.ParticipantRoleParticipant
 	}
 
 	participant := &model.RallyParticipant{
@@ -128,7 +130,7 @@ func (s *RallyParticipantService) InviteParticipant(ctx context.Context, idToken
 		RallyID:   rallyObjID,
 		UserID:    targetUser.ID,
 		Role:      role,
-		Status:    "invited",
+		Status:    model.ParticipationStatusInvited,
 		InvitedBy: &user.ID,
 	}
 

@@ -11,9 +11,11 @@ import (
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/model"
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/repository"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 type RallyService struct {
+	db              *mongo.Database
 	firebaseAuth    *auth.Client
 	rallyRepo       repository.RallyRepository
 	participantRepo repository.RallyParticipantRepository
@@ -21,6 +23,7 @@ type RallyService struct {
 }
 
 func NewRallyService(
+	db *mongo.Database,
 	firebaseApp *firebase.App,
 	rallyRepo repository.RallyRepository,
 	participantRepo repository.RallyParticipantRepository,
@@ -32,6 +35,7 @@ func NewRallyService(
 	}
 
 	return &RallyService{
+		db:              db,
 		firebaseAuth:    authClient,
 		rallyRepo:       rallyRepo,
 		participantRepo: participantRepo,
@@ -71,7 +75,7 @@ func (s *RallyService) ValidateRallyAccess(ctx context.Context, userID primitive
 	}
 
 	for _, role := range requiredRoles {
-		if participant.Role == role {
+		if string(participant.Role) == role {
 			return nil
 		}
 	}
@@ -79,45 +83,106 @@ func (s *RallyService) ValidateRallyAccess(ctx context.Context, userID primitive
 	return errors.New("unauthorized: insufficient permissions")
 }
 
-// CreateRally creates a new rally and auto-adds the creator as owner participant
+// CreateRally creates a new rally, auto-adds the creator as owner, and invites participants
 func (s *RallyService) CreateRally(ctx context.Context, idToken string, req *model.CreateRallyRequest) (*model.RallyResponse, error) {
 	user, err := s.authenticateUser(ctx, idToken)
 	if err != nil {
 		return nil, err
 	}
 
-	rally := &model.Rally{
-		ID:            primitive.NewObjectID(),
-		OwnerID:       user.ID,
-		Name:          req.Name,
-		Description:   req.Description,
-		CoverImageUrl: req.CoverImageUrl,
-		Status:        "draft",
-		StartDate:     req.StartDate,
-		EndDate:       req.EndDate,
+	session, err := s.db.Client().StartSession()
+	if err != nil {
+		return nil, fmt.Errorf("failed to start session: %w", err)
+	}
+	defer session.EndSession(ctx)
+
+	var rallyResponse *model.RallyResponse
+
+	_, err = session.WithTransaction(ctx, func(sessCtx mongo.SessionContext) (interface{}, error) {
+		rally := &model.Rally{
+			ID:            primitive.NewObjectID(),
+			OwnerID:       user.ID,
+			Name:          req.Name,
+			Description:   req.Description,
+			CoverImageUrl: req.CoverImageUrl,
+			Status:        model.RallyStatusDraft,
+			StartDate:     req.StartDate,
+			EndDate:       req.EndDate,
+		}
+
+		if err := s.rallyRepo.CreateRally(sessCtx, rally); err != nil {
+			return nil, fmt.Errorf("failed to create rally: %w", err)
+		}
+
+		// Auto-add creator as owner participant
+		now := time.Now()
+		ownerParticipant := &model.RallyParticipant{
+			ID:        primitive.NewObjectID(),
+			RallyID:   rally.ID,
+			UserID:    user.ID,
+			Role:      model.ParticipantRoleOwner,
+			Status:    model.ParticipationStatusJoined,
+			JoinedAt:  &now,
+			InvitedAt: now,
+		}
+
+		if err := s.participantRepo.CreateParticipant(sessCtx, ownerParticipant); err != nil {
+			return nil, fmt.Errorf("failed to create owner participant: %w", err)
+		}
+
+		// Process invited participants
+		for _, p := range req.Participants {
+			// Skip if user tries to invite themselves (owner already added)
+			if p.UserID == user.ID.Hex() {
+				continue
+			}
+
+			targetUser, err := s.userRepo.GetUserByID(sessCtx, p.UserID)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get target user %s: %w", p.UserID, err)
+			}
+			if targetUser == nil {
+				return nil, fmt.Errorf("target user %s not found", p.UserID)
+			}
+
+			// Check for duplicate participant
+			existing, err := s.participantRepo.GetParticipantByRallyAndUser(sessCtx, rally.ID, targetUser.ID)
+			if err != nil {
+				return nil, fmt.Errorf("failed to check existing participant: %w", err)
+			}
+			if existing != nil {
+				continue // Duplicate, skip
+			}
+
+			role := model.ParticipantRoleParticipant
+			if p.Role != nil {
+				role = *p.Role
+			}
+
+			participant := &model.RallyParticipant{
+				ID:        primitive.NewObjectID(),
+				RallyID:   rally.ID,
+				UserID:    targetUser.ID,
+				Role:      role,
+				Status:    model.ParticipationStatusInvited,
+				InvitedBy: &user.ID,
+				InvitedAt: now,
+			}
+
+			if err := s.participantRepo.CreateParticipant(sessCtx, participant); err != nil {
+				return nil, fmt.Errorf("failed to invite participant %s: %w", p.UserID, err)
+			}
+		}
+
+		rallyResponse = s.ConvertToRallyResponse(rally)
+		return rallyResponse, nil
+	})
+
+	if err != nil {
+		return nil, err
 	}
 
-	if err := s.rallyRepo.CreateRally(ctx, rally); err != nil {
-		return nil, fmt.Errorf("failed to create rally: %w", err)
-	}
-
-	// Auto-add creator as owner participant
-	now := time.Now()
-	participant := &model.RallyParticipant{
-		ID:        primitive.NewObjectID(),
-		RallyID:   rally.ID,
-		UserID:    user.ID,
-		Role:      "owner",
-		Status:    "joined",
-		JoinedAt:  &now,
-		InvitedAt: now,
-	}
-
-	if err := s.participantRepo.CreateParticipant(ctx, participant); err != nil {
-		return nil, fmt.Errorf("failed to create owner participant: %w", err)
-	}
-
-	return s.ConvertToRallyResponse(rally), nil
+	return rallyResponse, nil
 }
 
 // UpdateRally updates an existing rally (requires owner or editor role)

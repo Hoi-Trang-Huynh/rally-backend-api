@@ -21,7 +21,7 @@ func NewRallyHandler(rallyService *service.RallyService) *RallyHandler {
 
 // CreateRally godoc
 // @Summary Create a new rally
-// @Description Create a new rally. The authenticated user becomes the owner.
+// @Description Create a new rally. The authenticated user becomes the owner. Can optionally invite participants.
 // @Tags Rally
 // @ID createRally
 // @Accept json
