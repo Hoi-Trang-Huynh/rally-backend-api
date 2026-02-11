@@ -1,6 +1,8 @@
 package router
 
 import (
+	"context"
+
 	fb "firebase.google.com/go/v4"
 	_ "github.com/Hoi-Trang-Huynh/rally-backend-api/api/docs"
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/config"
@@ -54,47 +56,25 @@ func SetupWithDeps(
 	cld *utils.CloudinaryUploader,
 ) (*fiber.App, error) {
 
+	// Create Firebase auth client once and share across all services
+	firebaseAuth, err := fbApp.Auth(context.Background())
+	if err != nil {
+		return nil, err
+	}
+
 	app := fiber.New()
 
 	app.Use(middleware.Logger())
 	app.Use(middleware.CORS())
 
-	authService, err := service.NewAuthService(fbApp, userRepo)
-	if err != nil {
-		return nil, err
-	}
-
-	userService, err := service.NewUserService(fbApp, userRepo)
-	if err != nil {
-		return nil, err
-	}
-
-	followService, err := service.NewFollowService(fbApp, followRepo, userRepo)
-	if err != nil {
-		return nil, err
-	}
-
+	authService := service.NewAuthService(firebaseAuth, userRepo)
+	userService := service.NewUserService(firebaseAuth, userRepo)
+	followService := service.NewFollowService(firebaseAuth, followRepo, userRepo)
 	feedbackService := service.NewFeedbackService(feedbackRepo)
-
-	rallyService, err := service.NewRallyService(database.GetDB(), fbApp, rallyRepo, participantRepo, userRepo)
-	if err != nil {
-		return nil, err
-	}
-
-	eventService, err := service.NewEventService(fbApp, eventRepo, rallyRepo, participantRepo, userRepo)
-	if err != nil {
-		return nil, err
-	}
-
-	activityService, err := service.NewActivityService(fbApp, activityRepo, eventRepo, participantRepo, userRepo)
-	if err != nil {
-		return nil, err
-	}
-
-	participantService, err := service.NewRallyParticipantService(fbApp, participantRepo, rallyRepo, userRepo)
-	if err != nil {
-		return nil, err
-	}
+	rallyService := service.NewRallyService(database.GetDB(), firebaseAuth, rallyRepo, participantRepo, userRepo)
+	eventService := service.NewEventService(firebaseAuth, eventRepo, rallyRepo, participantRepo, userRepo)
+	activityService := service.NewActivityService(firebaseAuth, activityRepo, eventRepo, participantRepo, userRepo)
+	participantService := service.NewRallyParticipantService(firebaseAuth, participantRepo, rallyRepo, userRepo)
 
 	authHandler := handler.NewAuthHandler(authService)
 	userHandler := handler.NewUserHandler(userService)
@@ -106,6 +86,8 @@ func SetupWithDeps(
 	activityHandler := handler.NewActivityHandler(activityService)
 	participantHandler := handler.NewRallyParticipantHandler(participantService)
 
+	auth := middleware.AuthRequired()
+
 	app.Get("/swagger/*", fiberSwagger.WrapHandler)
 
 	api := app.Group("/api")
@@ -113,49 +95,50 @@ func SetupWithDeps(
 	v1.Get("/health", handler.HealthCheck)
 	v1.Get("/version", handler.VersionCheck)
 
-	auth := v1.Group("/auth")
-	auth.Post("/register", authHandler.RegisterOrLogin)
-	auth.Post("/login", authHandler.Login)
-	auth.Get("/check-email", authHandler.CheckEmailAvailability)
-	auth.Get("/check-username", authHandler.CheckUsernameAvailability)
+	authRoutes := v1.Group("/auth")
+	authRoutes.Post("/register", authHandler.RegisterOrLogin)
+	authRoutes.Post("/login", authHandler.Login)
+	authRoutes.Get("/check-email", authHandler.CheckEmailAvailability)
+	authRoutes.Get("/check-username", authHandler.CheckUsernameAvailability)
 
 	users := v1.Group("/user")
-	users.Get("/me/profile", userHandler.GetMyProfile)
-	users.Get("/me/profile/details", userHandler.GetMyProfileDetails)
+	users.Get("/me/profile", auth, userHandler.GetMyProfile)
+	users.Get("/me/profile/details", auth, userHandler.GetMyProfileDetails)
 	users.Get("/search", userHandler.SearchUsers)
 	users.Get("/:id/profile", followHandler.GetUserPublicProfile)
-	users.Put("/:id/profile", userHandler.UpdateProfile)
-	users.Post("/:id/follow", followHandler.FollowUser)
-	users.Delete("/:id/follow", followHandler.UnfollowUser)
-	users.Get("/:id/follow/status", followHandler.GetFollowStatus)
+	users.Put("/:id/profile", auth, userHandler.UpdateProfile)
+	users.Post("/:id/follow", auth, followHandler.FollowUser)
+	users.Delete("/:id/follow", auth, followHandler.UnfollowUser)
+	users.Get("/:id/follow/status", auth, followHandler.GetFollowStatus)
 	users.Get("/:id/followers", followHandler.GetFollowersList)
 	users.Get("/:id/following", followHandler.GetFollowingList)
 	users.Get("/:id/friends", followHandler.GetFriendsList)
+	users.Get("/:id/rallies", auth, rallyHandler.GetRalliesList)
 
 	media := v1.Group("/media")
 	media.Post("/sign", mediaHandler.GetUploadSignature)
-	media.Post("/verify-avatar", mediaHandler.VerifyAvatar)
+	media.Post("/verify-avatar", auth, mediaHandler.VerifyAvatar)
 
 	feedback := v1.Group("/feedback")
 	feedback.Post("/", feedbackHandler.CreateFeedback)
 	feedback.Get("/", feedbackHandler.GetFeedbackList)
 	feedback.Patch("/:id/resolve", feedbackHandler.UpdateFeedbackStatus)
 
-	// Rally routes
-	rallies := v1.Group("/rallies")
+	// Rally routes (all require auth)
+	rallies := v1.Group("/rallies", auth)
 	rallies.Post("/", rallyHandler.CreateRally)
 	rallies.Put("/:id", rallyHandler.UpdateRally)
 	rallies.Post("/:id/events", eventHandler.CreateEvent)
 	rallies.Post("/:id/participants", participantHandler.InviteParticipant)
 	rallies.Put("/:id/participants/:participantId", participantHandler.UpdateParticipant)
 
-	// Event routes
-	events := v1.Group("/events")
+	// Event routes (all require auth)
+	events := v1.Group("/events", auth)
 	events.Put("/:id", eventHandler.UpdateEvent)
 	events.Post("/:id/activities", activityHandler.CreateActivity)
 
-	// Activity routes
-	activities := v1.Group("/activities")
+	// Activity routes (all require auth)
+	activities := v1.Group("/activities", auth)
 	activities.Put("/:id", activityHandler.UpdateActivity)
 
 	return app, nil

@@ -21,7 +21,7 @@ func NewRallyHandler(rallyService *service.RallyService) *RallyHandler {
 
 // CreateRally godoc
 // @Summary Create a new rally
-// @Description Create a new rally. The authenticated user becomes the owner. Can optionally invite participants.
+// @Description Create a new rally. The authenticated user becomes the owner. Description supports rich text JSON.
 // @Tags Rally
 // @ID createRally
 // @Accept json
@@ -33,24 +33,12 @@ func NewRallyHandler(rallyService *service.RallyService) *RallyHandler {
 // @Failure 401 {object} model.ErrorResponse "Unauthorized"
 // @Router /rallies [post]
 func (h *RallyHandler) CreateRally(c *fiber.Ctx) error {
-	authHeader := c.Get("Authorization")
-	if authHeader == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
-			Message: "Authorization header is required",
-		})
-	}
-
-	if len(authHeader) < 7 || authHeader[:7] != "Bearer " {
-		return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
-			Message: "Invalid authorization format. Use 'Bearer <token>'",
-		})
-	}
-	idToken := authHeader[7:]
+	idToken := c.Locals("idToken").(string)
 
 	var req model.CreateRallyRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(model.ErrorResponse{
-			Message: "Invalid request payload",
+			Message: "Invalid request payload: " + err.Error(),
 		})
 	}
 
@@ -66,11 +54,7 @@ func (h *RallyHandler) CreateRally(c *fiber.Ctx) error {
 	response, err := h.rallyService.CreateRally(ctx, idToken, &req)
 	if err != nil {
 		switch err.Error() {
-		case "invalid or expired token":
-			return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
-				Message: err.Error(),
-			})
-		case "user not found":
+		case "invalid or expired token", "user not found":
 			return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
 				Message: err.Error(),
 			})
@@ -108,19 +92,7 @@ func (h *RallyHandler) UpdateRally(c *fiber.Ctx) error {
 		})
 	}
 
-	authHeader := c.Get("Authorization")
-	if authHeader == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
-			Message: "Authorization header is required",
-		})
-	}
-
-	if len(authHeader) < 7 || authHeader[:7] != "Bearer " {
-		return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
-			Message: "Invalid authorization format. Use 'Bearer <token>'",
-		})
-	}
-	idToken := authHeader[7:]
+	idToken := c.Locals("idToken").(string)
 
 	var req model.UpdateRallyRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -150,6 +122,93 @@ func (h *RallyHandler) UpdateRally(c *fiber.Ctx) error {
 		default:
 			return c.Status(fiber.StatusInternalServerError).JSON(model.ErrorResponse{
 				Message: "Failed to update rally",
+			})
+		}
+	}
+
+	return c.Status(fiber.StatusOK).JSON(response)
+}
+
+// GetRalliesList godoc
+// @Summary Get user's rallies list
+// @Description Get a paginated, filtered and sorted list of rallies where the specified user is a participant (with joined status). Returns only essential fields for list views.
+// @Tags User
+// @ID getUserRalliesList
+// @Accept json
+// @Produce json
+// @Param id path string true "User ID"
+// @Param Authorization header string true "Bearer Firebase ID Token"
+// @Param name query string false "Filter by rally name (case-insensitive partial match)"
+// @Param status query string false "Filter by status (draft, active, inactive, completed, archived)"
+// @Param sort query string false "Sort order for start date (asc or desc)" default(asc)
+// @Param page query int false "Page number (starts from 1)" default(1)
+// @Param pageSize query int false "Number of items per page" default(20)
+// @Success 200 {object} model.RalliesListResponse
+// @Failure 400 {object} model.ErrorResponse "Invalid request"
+// @Failure 401 {object} model.ErrorResponse "Unauthorized"
+// @Failure 404 {object} model.ErrorResponse "User not found"
+// @Failure 500 {object} model.ErrorResponse "Internal server error"
+// @Router /user/{id}/rallies [get]
+func (h *RallyHandler) GetRalliesList(c *fiber.Ctx) error {
+	userID := c.Params("id")
+	if userID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(model.ErrorResponse{
+			Message: "User ID is required",
+		})
+	}
+
+	idToken := c.Locals("idToken").(string)
+
+	nameFilter := c.Query("name", "")
+	statusFilter := c.Query("status", "")
+	sortOrder := c.Query("sort", "asc")
+
+	page := c.QueryInt("page", 1)
+	pageSize := c.QueryInt("pageSize", 20)
+
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 20
+	}
+	if pageSize > 100 {
+		pageSize = 100
+	}
+
+	if sortOrder != "asc" && sortOrder != "desc" {
+		sortOrder = "asc"
+	}
+
+	if statusFilter != "" {
+		validStatuses := map[string]bool{
+			"draft": true, "active": true, "inactive": true,
+			"completed": true, "archived": true,
+		}
+		if !validStatuses[statusFilter] {
+			return c.Status(fiber.StatusBadRequest).JSON(model.ErrorResponse{
+				Message: "Invalid status filter. Must be one of: draft, active, inactive, completed, archived",
+			})
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	response, err := h.rallyService.GetRalliesList(ctx, idToken, userID, nameFilter, statusFilter, sortOrder, page, pageSize)
+	if err != nil {
+		switch err.Error() {
+		case "invalid or expired token":
+			return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
+				Message: err.Error(),
+			})
+		case "user not found", "invalid user ID":
+			return c.Status(fiber.StatusNotFound).JSON(model.ErrorResponse{
+				Message: err.Error(),
+			})
+		default:
+			return c.Status(fiber.StatusInternalServerError).JSON(model.ErrorResponse{
+				Message: "Failed to get rallies list",
 			})
 		}
 	}

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	firebase "firebase.google.com/go/v4"
 	"firebase.google.com/go/v4/auth"
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/model"
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/repository"
@@ -18,34 +17,20 @@ type FollowService struct {
 	userRepo     repository.UserRepository
 }
 
-func NewFollowService(firebaseApp *firebase.App, followRepo repository.FollowRepository, userRepo repository.UserRepository) (*FollowService, error) {
-	authClient, err := firebaseApp.Auth(context.Background())
-	if err != nil {
-		return nil, fmt.Errorf("error getting Auth client: %w", err)
-	}
-
+func NewFollowService(firebaseAuth *auth.Client, followRepo repository.FollowRepository, userRepo repository.UserRepository) *FollowService {
 	return &FollowService{
-		firebaseAuth: authClient,
+		firebaseAuth: firebaseAuth,
 		followRepo:   followRepo,
 		userRepo:     userRepo,
-	}, nil
+	}
 }
 
 // FollowUser creates a follow relationship between the authenticated user and target user
 func (s *FollowService) FollowUser(ctx context.Context, idToken string, targetUserID string) (*model.FollowResponse, error) {
 	// Verify Firebase token to get current user
-	token, err := s.firebaseAuth.VerifyIDToken(ctx, idToken)
+	currentUser, err := authenticateUser(ctx, s.firebaseAuth, s.userRepo, idToken)
 	if err != nil {
-		return nil, errors.New("invalid or expired token")
-	}
-
-	// Get current user by Firebase UID
-	currentUser, err := s.userRepo.GetUserByFirebaseUID(ctx, token.UID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get current user: %w", err)
-	}
-	if currentUser == nil {
-		return nil, errors.New("current user not found")
+		return nil, err
 	}
 
 	// Convert target user ID to ObjectID
@@ -107,18 +92,9 @@ func (s *FollowService) FollowUser(ctx context.Context, idToken string, targetUs
 // UnfollowUser removes a follow relationship between the authenticated user and target user
 func (s *FollowService) UnfollowUser(ctx context.Context, idToken string, targetUserID string) (*model.FollowResponse, error) {
 	// Verify Firebase token to get current user
-	token, err := s.firebaseAuth.VerifyIDToken(ctx, idToken)
+	currentUser, err := authenticateUser(ctx, s.firebaseAuth, s.userRepo, idToken)
 	if err != nil {
-		return nil, errors.New("invalid or expired token")
-	}
-
-	// Get current user by Firebase UID
-	currentUser, err := s.userRepo.GetUserByFirebaseUID(ctx, token.UID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get current user: %w", err)
-	}
-	if currentUser == nil {
-		return nil, errors.New("current user not found")
+		return nil, err
 	}
 
 	// Convert target user ID to ObjectID
@@ -165,18 +141,9 @@ func (s *FollowService) UnfollowUser(ctx context.Context, idToken string, target
 // IsFollowing checks if the authenticated user follows the target user
 func (s *FollowService) IsFollowing(ctx context.Context, idToken string, targetUserID string) (*model.FollowStatusResponse, error) {
 	// Verify Firebase token to get current user
-	token, err := s.firebaseAuth.VerifyIDToken(ctx, idToken)
+	currentUser, err := authenticateUser(ctx, s.firebaseAuth, s.userRepo, idToken)
 	if err != nil {
-		return nil, errors.New("invalid or expired token")
-	}
-
-	// Get current user by Firebase UID
-	currentUser, err := s.userRepo.GetUserByFirebaseUID(ctx, token.UID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get current user: %w", err)
-	}
-	if currentUser == nil {
-		return nil, errors.New("current user not found")
+		return nil, err
 	}
 
 	// Convert target user ID to ObjectID

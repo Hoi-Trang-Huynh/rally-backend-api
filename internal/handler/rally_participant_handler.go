@@ -43,19 +43,7 @@ func (h *RallyParticipantHandler) InviteParticipant(c *fiber.Ctx) error {
 		})
 	}
 
-	authHeader := c.Get("Authorization")
-	if authHeader == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
-			Message: "Authorization header is required",
-		})
-	}
-
-	if len(authHeader) < 7 || authHeader[:7] != "Bearer " {
-		return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
-			Message: "Invalid authorization format. Use 'Bearer <token>'",
-		})
-	}
-	idToken := authHeader[7:]
+	idToken := c.Locals("idToken").(string)
 
 	var req model.InviteParticipantRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -134,19 +122,7 @@ func (h *RallyParticipantHandler) UpdateParticipant(c *fiber.Ctx) error {
 		})
 	}
 
-	authHeader := c.Get("Authorization")
-	if authHeader == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
-			Message: "Authorization header is required",
-		})
-	}
-
-	if len(authHeader) < 7 || authHeader[:7] != "Bearer " {
-		return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
-			Message: "Invalid authorization format. Use 'Bearer <token>'",
-		})
-	}
-	idToken := authHeader[7:]
+	idToken := c.Locals("idToken").(string)
 
 	var req model.UpdateParticipantRequest
 	if err := c.BodyParser(&req); err != nil {

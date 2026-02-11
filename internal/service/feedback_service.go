@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/model"
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/repository"
@@ -29,7 +30,7 @@ func (s *FeedbackService) SubmitFeedback(ctx context.Context, req model.CreateFe
 
 	err := s.repo.CreateFeedback(ctx, feedback)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create feedback: %w", err)
 	}
 
 	return feedback, nil
@@ -45,7 +46,7 @@ func (s *FeedbackService) ListFeedbacks(ctx context.Context, page, pageSize int,
 
 	feedbacks, total, err := s.repo.GetFeedbacks(ctx, page, pageSize, username, categories)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to list feedbacks: %w", err)
 	}
 
 	totalPages := int(total) / pageSize

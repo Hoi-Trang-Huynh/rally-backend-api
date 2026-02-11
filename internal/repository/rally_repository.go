@@ -15,6 +15,7 @@ type RallyRepository interface {
 	CreateRally(ctx context.Context, rally *model.Rally) error
 	GetRallyByID(ctx context.Context, rallyID string) (*model.Rally, error)
 	UpdateRally(ctx context.Context, rallyID string, updates *model.UpdateRallyRequest) (*model.Rally, error)
+	GetRalliesList(ctx context.Context, userID primitive.ObjectID, nameFilter string, statusFilter string, sortOrder string, page int, pageSize int) ([]model.Rally, int, error)
 }
 
 type rallyRepository struct {
@@ -102,4 +103,100 @@ func (r *rallyRepository) UpdateRally(ctx context.Context, rallyID string, updat
 	}
 
 	return r.GetRallyByID(ctx, rallyID)
+}
+
+func (r *rallyRepository) GetRalliesList(ctx context.Context, userID primitive.ObjectID, nameFilter string, statusFilter string, sortOrder string, page int, pageSize int) ([]model.Rally, int, error) {
+	// Build base pipeline for filtering
+	basePipeline := []bson.M{}
+
+	// Stage 1: Lookup rally_participants to filter by user participation
+	basePipeline = append(basePipeline, bson.M{
+		"$lookup": bson.M{
+			"from": "rally_participants",
+			"let":  bson.M{"rallyId": "$_id"},
+			"pipeline": []bson.M{
+				{
+					"$match": bson.M{
+						"$expr": bson.M{
+							"$and": []bson.M{
+								{"$eq": []interface{}{"$rally_id", "$$rallyId"}},
+								{"$eq": []interface{}{"$user_id", userID}},
+								{"$eq": []interface{}{"$status", "joined"}},
+							},
+						},
+					},
+				},
+			},
+			"as": "participations",
+		},
+	})
+
+	// Stage 2: Match only rallies where user has joined
+	basePipeline = append(basePipeline, bson.M{
+		"$match": bson.M{
+			"participations": bson.M{"$ne": []interface{}{}},
+		},
+	})
+
+	// Stage 3: Build match filters for name and status
+	matchStage := bson.M{}
+	if nameFilter != "" {
+		matchStage["name"] = bson.M{"$regex": nameFilter, "$options": "i"}
+	}
+	if statusFilter != "" {
+		matchStage["status"] = statusFilter
+	}
+	if len(matchStage) > 0 {
+		basePipeline = append(basePipeline, bson.M{"$match": matchStage})
+	}
+
+	// Create a facet pipeline to get both count and paginated results
+	sortDirection := 1 // 1 for ascending, -1 for descending
+	if sortOrder == "desc" {
+		sortDirection = -1
+	}
+
+	skip := (page - 1) * pageSize
+
+	facetPipeline := append(basePipeline, bson.M{
+		"$facet": bson.M{
+			"metadata": []bson.M{
+				{"$count": "total"},
+			},
+			"data": []bson.M{
+				{"$sort": bson.M{"start_date": sortDirection}},
+				{"$skip": skip},
+				{"$limit": pageSize},
+				{"$project": bson.M{"participations": 0}},
+			},
+		},
+	})
+
+	cursor, err := r.collection.Aggregate(ctx, facetPipeline)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer cursor.Close(ctx)
+
+	var results []struct {
+		Metadata []struct {
+			Total int `bson:"total"`
+		} `bson:"metadata"`
+		Data []model.Rally `bson:"data"`
+	}
+
+	if err := cursor.All(ctx, &results); err != nil {
+		return nil, 0, err
+	}
+
+	if len(results) == 0 || len(results[0].Data) == 0 {
+		return []model.Rally{}, 0, nil
+	}
+
+	total := 0
+	if len(results[0].Metadata) > 0 {
+		total = results[0].Metadata[0].Total
+	}
+
+	return results[0].Data, total, nil
 }

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	firebase "firebase.google.com/go/v4"
 	"firebase.google.com/go/v4/auth"
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/model"
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/repository"
@@ -16,16 +15,11 @@ type UserService struct {
 	userRepo     repository.UserRepository
 }
 
-func NewUserService(firebaseApp *firebase.App, userRepo repository.UserRepository) (*UserService, error) {
-	authClient, err := firebaseApp.Auth(context.Background())
-	if err != nil {
-		return nil, fmt.Errorf("error getting Auth client: %w", err)
-	}
-
+func NewUserService(firebaseAuth *auth.Client, userRepo repository.UserRepository) *UserService {
 	return &UserService{
-		firebaseAuth: authClient,
+		firebaseAuth: firebaseAuth,
 		userRepo:     userRepo,
-	}, nil
+	}
 }
 
 // GetUserProfile retrieves user profile by user ID (MongoDB ObjectID string)
@@ -42,21 +36,11 @@ func (s *UserService) GetUserProfile(ctx context.Context, userID string) (*model
 
 // GetUserProfileByToken retrieves user profile by Firebase ID token
 func (s *UserService) GetUserProfileByToken(ctx context.Context, idToken string) (*model.User, error) {
-	// Verify Firebase token
-	token, err := s.firebaseAuth.VerifyIDToken(ctx, idToken)
+	// Since we have helper, use it
+	user, err := authenticateUser(ctx, s.firebaseAuth, s.userRepo, idToken)
 	if err != nil {
-		return nil, errors.New("invalid or expired token")
+		return nil, err
 	}
-
-	// Get user by Firebase UID
-	user, err := s.userRepo.GetUserByFirebaseUID(ctx, token.UID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get user: %w", err)
-	}
-	if user == nil {
-		return nil, errors.New("user not found")
-	}
-
 	return user, nil
 }
 
@@ -82,19 +66,10 @@ func (s *UserService) UpdateUserProfile(ctx context.Context, userID string, upda
 
 // ValidateUserOwnership validates that the Firebase token belongs to the user being modified
 func (s *UserService) ValidateUserOwnership(ctx context.Context, idToken, userID string) error {
-	// Verify Firebase token
-	token, err := s.firebaseAuth.VerifyIDToken(ctx, idToken)
+	// Use helper
+	user, err := authenticateUser(ctx, s.firebaseAuth, s.userRepo, idToken)
 	if err != nil {
-		return errors.New("invalid or expired token")
-	}
-
-	// Get user by Firebase UID
-	user, err := s.userRepo.GetUserByFirebaseUID(ctx, token.UID)
-	if err != nil {
-		return fmt.Errorf("failed to get user: %w", err)
-	}
-	if user == nil {
-		return errors.New("user not found")
+		return err
 	}
 
 	// Check if the user ID matches (convert ObjectID to string for comparison)
