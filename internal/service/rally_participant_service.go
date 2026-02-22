@@ -154,3 +154,56 @@ func (s *RallyParticipantService) ConvertToParticipantResponse(p *model.RallyPar
 		InvitedAt: p.InvitedAt,
 	}
 }
+
+// GetParticipantsList retrieves a paginated list of participants for a given rally
+func (s *RallyParticipantService) GetParticipantsList(ctx context.Context, idToken string, rallyID string, role string, page, pageSize int) (*model.ParticipantListResponse, error) {
+	user, err := authenticateUser(ctx, s.firebaseAuth, s.userRepo, idToken)
+	if err != nil {
+		return nil, err
+	}
+
+	rallyObjID, err := primitive.ObjectIDFromHex(rallyID)
+	if err != nil {
+		return nil, errors.New("invalid rally ID")
+	}
+
+	participant, err := s.participantRepo.GetParticipantByRallyAndUser(ctx, rallyObjID, user.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check participation: %w", err)
+	}
+
+	if participant == nil {
+		return nil, errors.New("unauthorized: not a participant of this rally")
+	}
+
+	if participant.Status != model.ParticipationStatusJoined {
+		return nil, errors.New("unauthorized: you have been invited but not yet joined this rally")
+	}
+
+	participants, total, err := s.participantRepo.GetParticipantsList(ctx, rallyObjID, role, page, pageSize)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get participants list: %w", err)
+	}
+
+	// Calculate pagination using utils (assuming utils is available, adjust if not, or just handle manually)
+	// If utils is not imported, let's do it manually:
+	totalPages := int(total) / pageSize
+	if int(total)%pageSize > 0 {
+		totalPages++
+	}
+	if totalPages == 0 {
+		totalPages = 1
+	}
+
+	return &model.ParticipantListResponse{
+		Participants: participants,
+		Total:        int(total),
+		Page:         page,
+		PageSize:     pageSize,
+		TotalPages:   totalPages,
+		Pagination: model.PaginationMetadata{
+			HasNextPage:     page < totalPages,
+			HasPreviousPage: page > 1,
+		},
+	}, nil
+}

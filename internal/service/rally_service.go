@@ -226,6 +226,48 @@ func (s *RallyService) GetRalliesList(ctx context.Context, idToken string, userI
 	}, nil
 }
 
+// GetRally retrieves a specific rally by ID, ensuring the user has joined
+func (s *RallyService) GetRally(ctx context.Context, idToken string, rallyID string) (*model.RallyJoinResponse, error) {
+	user, err := authenticateUser(ctx, s.firebaseAuth, s.userRepo, idToken)
+	if err != nil {
+		return nil, err
+	}
+
+	rallyObjID, err := primitive.ObjectIDFromHex(rallyID)
+	if err != nil {
+		return nil, errors.New("invalid rally ID")
+	}
+
+	// Check participation status
+	participant, err := s.participantRepo.GetParticipantByRallyAndUser(ctx, rallyObjID, user.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check participation: %w", err)
+	}
+
+	if participant == nil {
+		return nil, errors.New("unauthorized: not a participant of this rally")
+	}
+
+	// Explicitly check for 'joined' status
+	if participant.Status != model.ParticipationStatusJoined {
+		return nil, errors.New("unauthorized: you have been invited but not yet joined this rally")
+	}
+
+	// Fetch rally details
+	rally, err := s.rallyRepo.GetRallyByID(ctx, rallyID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get rally: %w", err)
+	}
+	if rally == nil {
+		return nil, errors.New("rally not found")
+	}
+
+	return &model.RallyJoinResponse{
+		RallyResponse:   s.ConvertToRallyResponse(rally),
+		CurrentUserRole: participant.Role,
+	}, nil
+}
+
 // ConvertToRallyResponse converts a Rally model to RallyResponse
 func (s *RallyService) ConvertToRallyResponse(rally *model.Rally) *model.RallyResponse {
 	return &model.RallyResponse{

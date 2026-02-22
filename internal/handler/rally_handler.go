@@ -215,3 +215,55 @@ func (h *RallyHandler) GetRalliesList(c *fiber.Ctx) error {
 
 	return c.Status(fiber.StatusOK).JSON(response)
 }
+
+// GetRally godoc
+// @Summary Get rally details
+// @Description Get detailed information about a rally. Requires user to be a joined participant.
+// @Tags Rally
+// @ID getRally
+// @Accept json
+// @Produce json
+// @Param id path string true "Rally ID"
+// @Param Authorization header string true "Bearer Firebase ID Token"
+// @Success 200 {object} model.RallyJoinResponse
+// @Failure 401 {object} model.ErrorResponse "Unauthorized"
+// @Failure 403 {object} model.ErrorResponse "Forbidden"
+// @Failure 404 {object} model.ErrorResponse "Rally not found"
+// @Router /rallies/{id} [get]
+func (h *RallyHandler) GetRally(c *fiber.Ctx) error {
+	rallyID := c.Params("id")
+	if rallyID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(model.ErrorResponse{
+			Message: "Rally ID is required",
+		})
+	}
+
+	idToken := c.Locals("idToken").(string)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	response, err := h.rallyService.GetRally(ctx, idToken, rallyID)
+	if err != nil {
+		switch err.Error() {
+		case "invalid or expired token", "user not found":
+			return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
+				Message: err.Error(),
+			})
+		case "unauthorized: not a participant of this rally", "unauthorized: you have been invited but not yet joined this rally":
+			return c.Status(fiber.StatusForbidden).JSON(model.ErrorResponse{
+				Message: err.Error(),
+			})
+		case "rally not found", "invalid rally ID":
+			return c.Status(fiber.StatusNotFound).JSON(model.ErrorResponse{
+				Message: err.Error(),
+			})
+		default:
+			return c.Status(fiber.StatusInternalServerError).JSON(model.ErrorResponse{
+				Message: "Failed to get rally details",
+			})
+		}
+	}
+
+	return c.Status(fiber.StatusOK).JSON(response)
+}

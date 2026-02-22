@@ -60,3 +60,34 @@ type RallyParticipantResponse struct {
 	JoinedAt  *time.Time          `json:"joinedAt,omitempty" example:"2025-01-15T10:30:00Z"`
 	InvitedAt time.Time           `json:"invitedAt" example:"2025-01-15T10:30:00Z"`
 } //@name RallyParticipantResponse
+
+// ParticipantUserInfo contains basic info about a user in a participant list
+type ParticipantUserInfo struct {
+	ID        string `json:"id" bson:"_id" example:"507f1f77bcf86cd799439011"`
+	Username  string `json:"username" bson:"username" example:"johndoe"`
+	FirstName string `json:"firstName,omitempty" bson:"first_name" example:"John"`
+	LastName  string `json:"lastName,omitempty" bson:"last_name" example:"Doe"`
+	AvatarUrl string `json:"avatarUrl,omitempty" bson:"avatar_url" example:"https://example.com/avatar.jpg"`
+} //@name ParticipantUserInfo
+
+// RallyParticipantDetailResponse represents a detailed participant entry including user info
+type RallyParticipantDetailResponse struct {
+	ID        string               `json:"id" example:"507f1f77bcf86cd799439011"`
+	RallyID   string               `json:"rallyId" example:"507f1f77bcf86cd799439012"`
+	Role      ParticipantRole      `json:"role" example:"participant"`
+	Status    ParticipationStatus  `json:"status" example:"joined"`
+	JoinedAt  *time.Time           `json:"joinedAt,omitempty" example:"2025-01-15T10:30:00Z"`
+	InvitedAt time.Time            `json:"invitedAt" example:"2025-01-15T10:30:00Z"`
+	User      ParticipantUserInfo  `json:"user"`
+	InvitedBy *ParticipantUserInfo `json:"invitedBy,omitempty"`
+} //@name RallyParticipantDetailResponse
+
+// ParticipantListResponse represents the API response for participants list
+type ParticipantListResponse struct {
+	Participants []RallyParticipantDetailResponse `json:"participants"`
+	Total        int                              `json:"total" example:"100"`
+	Page         int                              `json:"page" example:"1"`
+	PageSize     int                              `json:"pageSize" example:"20"`
+	TotalPages   int                              `json:"totalPages" example:"5"`
+	Pagination   PaginationMetadata               `json:"pagination"`
+} //@name ParticipantListResponse

@@ -65,6 +65,12 @@ type RallyResponse struct {
 	UpdatedAt     time.Time   `json:"updatedAt" example:"2025-01-15T10:30:00Z"`
 } //@name RallyResponse
 
+// RallyJoinResponse represents the API response for GetRally, including user's role
+type RallyJoinResponse struct {
+	*RallyResponse
+	CurrentUserRole ParticipantRole `json:"currentUserRole" example:"owner"`
+} //@name RallyJoinResponse
+
 // RallyListItem represents a simplified rally item for list views
 type RallyListItem struct {
 	ID        string      `json:"id" example:"507f1f77bcf86cd799439011"`

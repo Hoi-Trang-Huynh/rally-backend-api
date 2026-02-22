@@ -158,3 +158,85 @@ func (h *RallyParticipantHandler) UpdateParticipant(c *fiber.Ctx) error {
 
 	return c.Status(fiber.StatusOK).JSON(response)
 }
+
+// GetParticipantsList godoc
+// @Summary Get participants of a rally
+// @Description Get a paginated list of participants in a rally. Requires user to be a joined participant.
+// @Tags Rally Participants
+// @ID getRallyParticipantsList
+// @Accept json
+// @Produce json
+// @Param id path string true "Rally ID"
+// @Param Authorization header string true "Bearer Firebase ID Token"
+// @Param role query string false "Filter by role (owner, editor, participant)"
+// @Param page query int false "Page number (starts from 1)" default(1)
+// @Param pageSize query int false "Number of items per page" default(20)
+// @Success 200 {object} model.ParticipantListResponse
+// @Failure 401 {object} model.ErrorResponse "Unauthorized"
+// @Failure 403 {object} model.ErrorResponse "Forbidden"
+// @Failure 404 {object} model.ErrorResponse "Rally not found"
+// @Router /rallies/{id}/participants [get]
+func (h *RallyParticipantHandler) GetParticipantsList(c *fiber.Ctx) error {
+	rallyID := c.Params("id")
+	if rallyID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(model.ErrorResponse{
+			Message: "Rally ID is required",
+		})
+	}
+
+	idToken := c.Locals("idToken").(string)
+
+	roleFilter := c.Query("role", "")
+	if roleFilter != "" {
+		validRoles := map[string]bool{
+			string(model.ParticipantRoleOwner):       true,
+			string(model.ParticipantRoleEditor):      true,
+			string(model.ParticipantRoleParticipant): true,
+		}
+		if !validRoles[roleFilter] {
+			return c.Status(fiber.StatusBadRequest).JSON(model.ErrorResponse{
+				Message: "Invalid role filter. Must be one of: owner, editor, participant",
+			})
+		}
+	}
+
+	page := c.QueryInt("page", 1)
+	pageSize := c.QueryInt("pageSize", 20)
+
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 20
+	}
+	if pageSize > 100 {
+		pageSize = 100
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	response, err := h.participantService.GetParticipantsList(ctx, idToken, rallyID, roleFilter, page, pageSize)
+	if err != nil {
+		switch err.Error() {
+		case "invalid or expired token", "user not found":
+			return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
+				Message: err.Error(),
+			})
+		case "unauthorized: not a participant of this rally", "unauthorized: you have been invited but not yet joined this rally":
+			return c.Status(fiber.StatusForbidden).JSON(model.ErrorResponse{
+				Message: err.Error(),
+			})
+		case "invalid rally ID":
+			return c.Status(fiber.StatusBadRequest).JSON(model.ErrorResponse{
+				Message: err.Error(),
+			})
+		default:
+			return c.Status(fiber.StatusInternalServerError).JSON(model.ErrorResponse{
+				Message: "Failed to get participants list",
+			})
+		}
+	}
+
+	return c.Status(fiber.StatusOK).JSON(response)
+}

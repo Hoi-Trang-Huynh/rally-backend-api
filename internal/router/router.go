@@ -127,8 +127,10 @@ func SetupWithDeps(
 	// Rally routes (all require auth)
 	rallies := v1.Group("/rallies", auth)
 	rallies.Post("/", rallyHandler.CreateRally)
+	rallies.Get("/:id", rallyHandler.GetRally)
 	rallies.Put("/:id", rallyHandler.UpdateRally)
 	rallies.Post("/:id/events", eventHandler.CreateEvent)
+	rallies.Get("/:id/participants", participantHandler.GetParticipantsList)
 	rallies.Post("/:id/participants", participantHandler.InviteParticipant)
 	rallies.Put("/:id/participants/:participantId", participantHandler.UpdateParticipant)
 
