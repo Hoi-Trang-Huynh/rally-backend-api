@@ -16,6 +16,7 @@ type RallyParticipantService struct {
 	participantRepo repository.RallyParticipantRepository
 	rallyRepo       repository.RallyRepository
 	userRepo        repository.UserRepository
+	followRepo      repository.FollowRepository
 }
 
 func NewRallyParticipantService(
@@ -23,12 +24,14 @@ func NewRallyParticipantService(
 	participantRepo repository.RallyParticipantRepository,
 	rallyRepo repository.RallyRepository,
 	userRepo repository.UserRepository,
+	followRepo repository.FollowRepository,
 ) *RallyParticipantService {
 	return &RallyParticipantService{
 		firebaseAuth:    firebaseAuth,
 		participantRepo: participantRepo,
 		rallyRepo:       rallyRepo,
 		userRepo:        userRepo,
+		followRepo:      followRepo,
 	}
 }
 
@@ -205,5 +208,57 @@ func (s *RallyParticipantService) GetParticipantsList(ctx context.Context, idTok
 			HasNextPage:     page < totalPages,
 			HasPreviousPage: page > 1,
 		},
+	}, nil
+}
+
+// GetInvitableFriends retrieves friends who can be invited to a rally (not already participants)
+func (s *RallyParticipantService) GetInvitableFriends(ctx context.Context, idToken string, rallyID string, query string, page, pageSize int) (*model.FriendListResponse, error) {
+	user, err := authenticateUser(ctx, s.firebaseAuth, s.userRepo, idToken)
+	if err != nil {
+		return nil, err
+	}
+
+	rallyObjID, err := primitive.ObjectIDFromHex(rallyID)
+	if err != nil {
+		return nil, errors.New("invalid rally ID")
+	}
+
+	// Verify rally exists
+	rally, err := s.rallyRepo.GetRallyByID(ctx, rallyID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get rally: %w", err)
+	}
+	if rally == nil {
+		return nil, errors.New("rally not found")
+	}
+
+	// Verify user is a participant of this rally
+	participant, err := s.participantRepo.GetParticipantByRallyAndUser(ctx, rallyObjID, user.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check participation: %w", err)
+	}
+	if participant == nil {
+		return nil, errors.New("unauthorized: not a participant of this rally")
+	}
+
+	users, total, err := s.followRepo.GetInvitableFriends(ctx, user.ID, rallyObjID, query, page, pageSize)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get invitable friends: %w", err)
+	}
+
+	totalPages := int(total) / pageSize
+	if int(total)%pageSize > 0 {
+		totalPages++
+	}
+	if totalPages == 0 {
+		totalPages = 1
+	}
+
+	return &model.FriendListResponse{
+		Users:      users,
+		Total:      total,
+		Page:       page,
+		PageSize:   pageSize,
+		TotalPages: totalPages,
 	}, nil
 }

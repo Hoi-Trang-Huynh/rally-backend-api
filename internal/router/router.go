@@ -74,7 +74,7 @@ func SetupWithDeps(
 	rallyService := service.NewRallyService(database.GetDB(), firebaseAuth, rallyRepo, participantRepo, userRepo)
 	eventService := service.NewEventService(firebaseAuth, eventRepo, rallyRepo, participantRepo, userRepo)
 	activityService := service.NewActivityService(firebaseAuth, activityRepo, eventRepo, participantRepo, userRepo)
-	participantService := service.NewRallyParticipantService(firebaseAuth, participantRepo, rallyRepo, userRepo)
+	participantService := service.NewRallyParticipantService(firebaseAuth, participantRepo, rallyRepo, userRepo, followRepo)
 
 	authHandler := handler.NewAuthHandler(authService)
 	userHandler := handler.NewUserHandler(userService)
@@ -131,6 +131,7 @@ func SetupWithDeps(
 	rallies.Put("/:id", rallyHandler.UpdateRally)
 	rallies.Post("/:id/events", eventHandler.CreateEvent)
 	rallies.Get("/:id/participants", participantHandler.GetParticipantsList)
+	rallies.Get("/:id/invitable-friends", participantHandler.GetInvitableFriends)
 	rallies.Post("/:id/participants", participantHandler.InviteParticipant)
 	rallies.Put("/:id/participants/:participantId", participantHandler.UpdateParticipant)
 

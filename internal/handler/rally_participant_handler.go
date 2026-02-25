@@ -240,3 +240,72 @@ func (h *RallyParticipantHandler) GetParticipantsList(c *fiber.Ctx) error {
 
 	return c.Status(fiber.StatusOK).JSON(response)
 }
+
+// GetInvitableFriends godoc
+// @Summary Get friends who can be invited to a rally
+// @Description Get a paginated list of the authenticated user's friends who are NOT already participants (any status) in the given rally. Supports search by name/username.
+// @Tags Rally Participants
+// @ID getInvitableFriends
+// @Accept json
+// @Produce json
+// @Param id path string true "Rally ID"
+// @Param Authorization header string true "Bearer Firebase ID Token"
+// @Param q query string false "Search query (matches username, first name, or last name)"
+// @Param page query int false "Page number (starts from 1)" default(1)
+// @Param pageSize query int false "Number of items per page" default(20)
+// @Success 200 {object} model.FriendListResponse
+// @Failure 401 {object} model.ErrorResponse "Unauthorized"
+// @Failure 403 {object} model.ErrorResponse "Forbidden"
+// @Failure 404 {object} model.ErrorResponse "Rally not found"
+// @Router /rallies/{id}/invitable-friends [get]
+func (h *RallyParticipantHandler) GetInvitableFriends(c *fiber.Ctx) error {
+	rallyID := c.Params("id")
+	if rallyID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(model.ErrorResponse{
+			Message: "Rally ID is required",
+		})
+	}
+
+	idToken := c.Locals("idToken").(string)
+
+	query := c.Query("q", "")
+	page := c.QueryInt("page", 1)
+	pageSize := c.QueryInt("pageSize", 20)
+
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 20
+	}
+	if pageSize > 50 {
+		pageSize = 50
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	response, err := h.participantService.GetInvitableFriends(ctx, idToken, rallyID, query, page, pageSize)
+	if err != nil {
+		switch err.Error() {
+		case "invalid or expired token", "user not found":
+			return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
+				Message: err.Error(),
+			})
+		case "unauthorized: not a participant of this rally":
+			return c.Status(fiber.StatusForbidden).JSON(model.ErrorResponse{
+				Message: err.Error(),
+			})
+		case "rally not found", "invalid rally ID":
+			return c.Status(fiber.StatusNotFound).JSON(model.ErrorResponse{
+				Message: err.Error(),
+			})
+		default:
+			return c.Status(fiber.StatusInternalServerError).JSON(model.ErrorResponse{
+				Message: "Failed to get invitable friends",
+			})
+		}
+	}
+
+	return c.Status(fiber.StatusOK).JSON(response)
+}

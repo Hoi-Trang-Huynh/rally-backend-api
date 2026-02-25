@@ -19,6 +19,7 @@ type FollowRepository interface {
 	GetFollowers(ctx context.Context, userID primitive.ObjectID, page, pageSize int) ([]*model.Follow, int64, error)
 	GetFollowing(ctx context.Context, userID primitive.ObjectID, page, pageSize int) ([]*model.Follow, int64, error)
 	GetFriends(ctx context.Context, userID primitive.ObjectID, query string, page, pageSize int) ([]*model.Follow, int64, error)
+	GetInvitableFriends(ctx context.Context, userID, rallyID primitive.ObjectID, query string, page, pageSize int) ([]model.FollowUserItem, int64, error)
 }
 
 type followRepository struct {
@@ -316,4 +317,191 @@ func (r *followRepository) GetFriends(ctx context.Context, userID primitive.Obje
 	}
 
 	return follows, total, nil
+}
+
+// GetInvitableFriends retrieves mutual friends who are NOT already participants in the given rally
+func (r *followRepository) GetInvitableFriends(ctx context.Context, userID, rallyID primitive.ObjectID, query string, page, pageSize int) ([]model.FollowUserItem, int64, error) {
+	skip := int64((page - 1) * pageSize)
+	limit := int64(pageSize)
+
+	// Step 1: Match follows where the current user is the follower
+	matchStage := bson.M{
+		"$match": bson.M{
+			"follower_id": userID,
+		},
+	}
+
+	// Step 2: Lookup mutual follow (friend = they follow back)
+	lookupMutualStage := bson.M{
+		"$lookup": bson.M{
+			"from": "follows",
+			"let":  bson.M{"following_id": "$following_id"},
+			"pipeline": bson.A{
+				bson.M{
+					"$match": bson.M{
+						"$expr": bson.M{
+							"$and": bson.A{
+								bson.M{"$eq": bson.A{"$follower_id", "$$following_id"}},
+								bson.M{"$eq": bson.A{"$following_id", userID}},
+							},
+						},
+					},
+				},
+			},
+			"as": "mutual",
+		},
+	}
+
+	filterMutualStage := bson.M{
+		"$match": bson.M{
+			"mutual.0": bson.M{"$exists": true},
+		},
+	}
+
+	// Step 3: Lookup rally_participants to check if friend is already in this rally
+	lookupParticipantStage := bson.M{
+		"$lookup": bson.M{
+			"from": "rally_participants",
+			"let":  bson.M{"friend_id": "$following_id"},
+			"pipeline": bson.A{
+				bson.M{
+					"$match": bson.M{
+						"$expr": bson.M{
+							"$and": bson.A{
+								bson.M{"$eq": bson.A{"$rally_id", rallyID}},
+								bson.M{"$eq": bson.A{"$user_id", "$$friend_id"}},
+							},
+						},
+					},
+				},
+			},
+			"as": "existing_participant",
+		},
+	}
+
+	// Step 4: Exclude friends who are already participants (any status)
+	filterNotParticipantStage := bson.M{
+		"$match": bson.M{
+			"existing_participant": bson.M{"$size": 0},
+		},
+	}
+
+	// Step 5: Lookup user details
+	lookupUserStage := bson.M{
+		"$lookup": bson.M{
+			"from":         "users",
+			"localField":   "following_id",
+			"foreignField": "_id",
+			"as":           "user",
+		},
+	}
+
+	unwindStage := bson.M{
+		"$unwind": "$user",
+	}
+
+	// Step 6: Filter active users + optional search
+	userMatchFilter := bson.M{
+		"user.is_active": true,
+	}
+	if query != "" {
+		regexPattern := primitive.Regex{Pattern: query, Options: "i"}
+		userMatchFilter["$or"] = bson.A{
+			bson.M{"user.username": regexPattern},
+			bson.M{"user.first_name": regexPattern},
+			bson.M{"user.last_name": regexPattern},
+		}
+	}
+	userMatchStage := bson.M{
+		"$match": userMatchFilter,
+	}
+
+	sortStage := bson.M{
+		"$sort": bson.M{"user.username": 1},
+	}
+
+	facetStage := bson.M{
+		"$facet": bson.M{
+			"metadata": bson.A{
+				bson.M{"$count": "total"},
+			},
+			"data": bson.A{
+				bson.M{"$skip": skip},
+				bson.M{"$limit": limit},
+			},
+		},
+	}
+
+	pipeline := []bson.M{
+		matchStage,
+		lookupMutualStage,
+		filterMutualStage,
+		lookupParticipantStage,
+		filterNotParticipantStage,
+		lookupUserStage,
+		unwindStage,
+		userMatchStage,
+		sortStage,
+		facetStage,
+	}
+
+	cursor, err := r.collection.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer cursor.Close(ctx)
+
+	var results []bson.M
+	if err := cursor.All(ctx, &results); err != nil {
+		return nil, 0, err
+	}
+
+	var total int64 = 0
+	var users []model.FollowUserItem
+
+	if len(results) > 0 {
+		result := results[0]
+
+		if metadata, ok := result["metadata"].(primitive.A); ok && len(metadata) > 0 {
+			if metaDoc, ok := metadata[0].(bson.M); ok {
+				if totalVal, ok := metaDoc["total"].(int32); ok {
+					total = int64(totalVal)
+				} else if totalVal, ok := metaDoc["total"].(int64); ok {
+					total = totalVal
+				}
+			}
+		}
+
+		if data, ok := result["data"].(primitive.A); ok {
+			users = make([]model.FollowUserItem, 0, len(data))
+			for _, item := range data {
+				if doc, ok := item.(bson.M); ok {
+					if userDoc, ok := doc["user"].(bson.M); ok {
+						userItem := model.FollowUserItem{
+							ID: userDoc["_id"].(primitive.ObjectID).Hex(),
+						}
+						if v, ok := userDoc["username"].(string); ok {
+							userItem.Username = v
+						}
+						if v, ok := userDoc["first_name"].(string); ok {
+							userItem.FirstName = v
+						}
+						if v, ok := userDoc["last_name"].(string); ok {
+							userItem.LastName = v
+						}
+						if v, ok := userDoc["avatar_url"].(string); ok {
+							userItem.AvatarUrl = v
+						}
+						users = append(users, userItem)
+					}
+				}
+			}
+		}
+	}
+
+	if users == nil {
+		users = []model.FollowUserItem{}
+	}
+
+	return users, total, nil
 }
