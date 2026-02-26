@@ -17,6 +17,7 @@ type RallyParticipantRepository interface {
 	GetParticipantByRallyAndUser(ctx context.Context, rallyID, userID primitive.ObjectID) (*model.RallyParticipant, error)
 	UpdateParticipant(ctx context.Context, participantID string, updates *model.UpdateParticipantRequest) (*model.RallyParticipant, error)
 	GetParticipantsList(ctx context.Context, rallyID primitive.ObjectID, role string, page, pageSize int) ([]model.RallyParticipantDetailResponse, int64, error)
+	CountJoinedParticipants(ctx context.Context, rallyID primitive.ObjectID) (int64, error)
 }
 
 type rallyParticipantRepository struct {
@@ -236,4 +237,11 @@ func (r *rallyParticipantRepository) GetParticipantsList(ctx context.Context, ra
 	}
 
 	return responses, total, nil
+}
+
+func (r *rallyParticipantRepository) CountJoinedParticipants(ctx context.Context, rallyID primitive.ObjectID) (int64, error) {
+	return r.collection.CountDocuments(ctx, bson.M{
+		"rally_id": rallyID,
+		"status":   string(model.ParticipationStatusJoined),
+	})
 }

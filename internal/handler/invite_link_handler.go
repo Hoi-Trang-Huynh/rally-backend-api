@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"log"
 	"time"
 
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/model"
@@ -42,30 +43,26 @@ func (h *InviteLinkHandler) CreateInviteLink(c *fiber.Ctx) error {
 		})
 	}
 
-	idToken := c.Locals("idToken").(string)
+	user := c.Locals("user").(*model.User)
+	callerParticipant := c.Locals("rallyParticipant").(*model.RallyParticipant)
 
 	var req model.CreateInviteLinkRequest
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(model.ErrorResponse{
-			Message: "Invalid request body",
-		})
+	// All fields are optional, so allow empty body
+	if len(c.Body()) > 0 {
+		if err := c.BodyParser(&req); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(model.ErrorResponse{
+				Message: "Invalid request body: " + err.Error(),
+			})
+		}
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	response, err := h.inviteLinkService.CreateInviteLink(ctx, idToken, rallyID, &req)
+	response, err := h.inviteLinkService.CreateInviteLink(ctx, user, callerParticipant, rallyID, &req)
 	if err != nil {
 		switch err.Error() {
-		case "invalid or expired token", "user not found":
-			return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
-				Message: err.Error(),
-			})
-		case "rally not found", "invalid rally ID":
-			return c.Status(fiber.StatusNotFound).JSON(model.ErrorResponse{
-				Message: err.Error(),
-			})
-		case "only owners can create links for owner/editor roles", "unauthorized: sufficient role required":
+		case "only owners can create links for owner/editor roles":
 			return c.Status(fiber.StatusForbidden).JSON(model.ErrorResponse{
 				Message: err.Error(),
 			})
@@ -99,27 +96,14 @@ func (h *InviteLinkHandler) GetActiveInviteLinks(c *fiber.Ctx) error {
 		})
 	}
 
-	idToken := c.Locals("idToken").(string)
-
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	response, err := h.inviteLinkService.GetActiveInviteLinks(ctx, idToken, rallyID)
+	response, err := h.inviteLinkService.GetActiveInviteLinks(ctx, rallyID)
 	if err != nil {
-		switch err.Error() {
-		case "invalid or expired token", "user not found":
-			return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
-				Message: err.Error(),
-			})
-		case "rally not found", "invalid rally ID":
-			return c.Status(fiber.StatusNotFound).JSON(model.ErrorResponse{
-				Message: err.Error(),
-			})
-		default:
-			return c.Status(fiber.StatusInternalServerError).JSON(model.ErrorResponse{
-				Message: "Failed to list invite links",
-			})
-		}
+		return c.Status(fiber.StatusInternalServerError).JSON(model.ErrorResponse{
+			Message: "Failed to list invite links",
+		})
 	}
 
 	return c.Status(fiber.StatusOK).JSON(response)
@@ -148,18 +132,12 @@ func (h *InviteLinkHandler) DeactivateInviteLink(c *fiber.Ctx) error {
 		})
 	}
 
-	idToken := c.Locals("idToken").(string)
-
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	err := h.inviteLinkService.DeactivateInviteLink(ctx, idToken, rallyID, token)
+	err := h.inviteLinkService.DeactivateInviteLink(ctx, rallyID, token)
 	if err != nil {
 		switch err.Error() {
-		case "invalid or expired token", "user not found":
-			return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
-				Message: err.Error(),
-			})
 		case "link not found or already inactive", "link does not belong to this rally":
 			return c.Status(fiber.StatusNotFound).JSON(model.ErrorResponse{
 				Message: err.Error(),
@@ -220,6 +198,60 @@ func (h *InviteLinkHandler) JoinViaLink(c *fiber.Ctx) error {
 		default:
 			return c.Status(fiber.StatusInternalServerError).JSON(model.ErrorResponse{
 				Message: "Failed to join via link",
+			})
+		}
+	}
+
+	return c.Status(fiber.StatusOK).JSON(response)
+}
+
+// PreviewInviteLink godoc
+// @Summary Preview an invite link
+// @Description Get details about an invite link for a preview card (rally info, owner info, role offered). Requires authentication.
+// @Tags Invite Links
+// @ID previewInviteLink
+// @Accept json
+// @Produce json
+// @Param token path string true "Invite link token (UUID)"
+// @Param Authorization header string true "Bearer Firebase ID Token"
+// @Success 200 {object} model.InviteLinkPreviewResponse
+// @Failure 401 {object} model.ErrorResponse "Unauthorized"
+// @Failure 404 {object} model.ErrorResponse "Link or rally not found"
+// @Failure 400 {object} model.ErrorResponse "Link expired or reached limit"
+// @Router /rallies/invite-links/{token}/preview [get]
+func (h *InviteLinkHandler) PreviewInviteLink(c *fiber.Ctx) error {
+	token := c.Params("token")
+	if token == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(model.ErrorResponse{
+			Message: "Token is required",
+		})
+	}
+
+	idToken := c.Locals("idToken").(string)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	response, err := h.inviteLinkService.PreviewInviteLink(ctx, idToken, token)
+	if err != nil {
+		log.Printf("[PreviewInviteLink] ERROR for token %s: %v\n", token, err)
+
+		switch err.Error() {
+		case "invalid or expired token", "user not found":
+			return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
+				Message: err.Error(),
+			})
+		case "link is invalid or inactive", "rally not found or inactive", "rally owner not found":
+			return c.Status(fiber.StatusNotFound).JSON(model.ErrorResponse{
+				Message: err.Error(),
+			})
+		case "link is expired", "link has reached its maximum uses", "user is already a joined participant":
+			return c.Status(fiber.StatusBadRequest).JSON(model.ErrorResponse{
+				Message: err.Error(),
+			})
+		default:
+			return c.Status(fiber.StatusInternalServerError).JSON(model.ErrorResponse{
+				Message: "Failed to preview invite link",
 			})
 		}
 	}

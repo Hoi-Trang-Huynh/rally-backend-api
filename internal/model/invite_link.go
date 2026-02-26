@@ -52,4 +52,30 @@ type JoinViaLinkResponse struct {
 	Message string `json:"message" example:"Successfully joined the rally"`
 	RallyID string `json:"rallyId" example:"507f1f77bcf86cd799439012"`
 	Role    string `json:"role" example:"participant"`
+	Status  string `json:"status" example:"invited"`
 } //@name JoinViaLinkResponse
+
+// InviteLinkPreviewOwner contains the rally owner's public info for the preview card
+type InviteLinkPreviewOwner struct {
+	Username  string `json:"username" example:"johndoe"`
+	FirstName string `json:"firstName,omitempty" example:"John"`
+	LastName  string `json:"lastName,omitempty" example:"Doe"`
+	AvatarUrl string `json:"avatarUrl,omitempty" example:"https://example.com/avatar.jpg"`
+} //@name InviteLinkPreviewOwner
+
+// InviteLinkPreviewResponse represents the preview card data for an invitation
+type InviteLinkPreviewResponse struct {
+	RallyID       string                 `json:"rallyId" example:"507f1f77bcf86cd799439012"`
+	RallyName     string                 `json:"rallyName" example:"Summer Road Trip"`
+	Description   interface{}            `json:"description,omitempty"`
+	CoverImageUrl string                 `json:"coverImageUrl,omitempty" example:"https://example.com/cover.jpg"`
+	Status        RallyStatus            `json:"status" example:"active"`
+	StartDate     *time.Time             `json:"startDate,omitempty" example:"2025-07-01T00:00:00Z"`
+	EndDate       *time.Time             `json:"endDate,omitempty" example:"2025-07-15T00:00:00Z"`
+	Owner         InviteLinkPreviewOwner `json:"owner"`
+	RoleOffered   ParticipantRole        `json:"roleOffered" example:"participant"`
+	MemberCount   int64                  `json:"memberCount" example:"5"`
+	EventCount    int64                  `json:"eventCount" example:"3"`
+	ParticipantID string                 `json:"participantId" example:"507f1f77bcf86cd799439015"`
+	InvitedAt     time.Time              `json:"invitedAt" example:"2025-01-15T10:30:00Z"`
+} //@name InviteLinkPreviewResponse

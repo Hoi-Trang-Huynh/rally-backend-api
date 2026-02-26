@@ -77,7 +77,7 @@ func SetupWithDeps(
 	eventService := service.NewEventService(firebaseAuth, eventRepo, rallyRepo, participantRepo, userRepo)
 	activityService := service.NewActivityService(firebaseAuth, activityRepo, eventRepo, participantRepo, userRepo)
 	participantService := service.NewRallyParticipantService(firebaseAuth, participantRepo, rallyRepo, userRepo, followRepo)
-	inviteLinkService := service.NewInviteLinkService(firebaseAuth, inviteLinkRepo, participantRepo, rallyRepo, userRepo)
+	inviteLinkService := service.NewInviteLinkService(firebaseAuth, inviteLinkRepo, participantRepo, rallyRepo, userRepo, eventRepo)
 
 	authHandler := handler.NewAuthHandler(authService)
 	userHandler := handler.NewUserHandler(userService)
@@ -128,28 +128,35 @@ func SetupWithDeps(
 	feedback.Get("/", feedbackHandler.GetFeedbackList)
 	feedback.Patch("/:id/resolve", feedbackHandler.UpdateFeedbackStatus)
 
-	// Rally routes (all require auth)
-	rallies := v1.Group("/rallies", auth)
-	rallies.Post("/join-via-link", inviteLinkHandler.JoinViaLink)
-	rallies.Post("/", rallyHandler.CreateRally)
-	rallies.Get("/:id", rallyHandler.GetRally)
-	rallies.Put("/:id", rallyHandler.UpdateRally)
-	rallies.Post("/:id/events", eventHandler.CreateEvent)
-	rallies.Get("/:id/participants", participantHandler.GetParticipantsList)
-	rallies.Get("/:id/invitable-friends", participantHandler.GetInvitableFriends)
-	rallies.Post("/:id/participants", participantHandler.InviteParticipant)
-	rallies.Put("/:id/participants/:participantId", participantHandler.UpdateParticipant)
-	rallies.Post("/:id/invite-links", inviteLinkHandler.CreateInviteLink)
-	rallies.Get("/:id/invite-links", inviteLinkHandler.GetActiveInviteLinks)
-	rallies.Delete("/:id/invite-links/:token", inviteLinkHandler.DeactivateInviteLink)
+	// Convenience aliases for rally access middleware
+	resolveUser := middleware.ResolveFirebaseUser(firebaseAuth, userRepo)
+	loadParticipant := middleware.LoadRallyParticipant(participantRepo)
+	joined := middleware.RequireJoined()
+	ownerOrEditor := middleware.RequireRole("owner", "editor")
 
-	// Event routes (all require auth)
-	events := v1.Group("/events", auth)
+	// Rally routes (all require auth + resolved user)
+	rallies := v1.Group("/rallies", auth, resolveUser)
+	rallies.Post("/join-via-link", inviteLinkHandler.JoinViaLink)                                                              // No rally ID — manual validation
+	rallies.Get("/invite-links/:token/preview", inviteLinkHandler.PreviewInviteLink)                                           // Preview an invite link
+	rallies.Post("/", rallyHandler.CreateRally)                                                                                // No rally ID yet
+	rallies.Get("/:id", loadParticipant, rallyHandler.GetRally)                                                                // Allows invited — handler checks status
+	rallies.Put("/:id", loadParticipant, joined, ownerOrEditor, rallyHandler.UpdateRally)                                      // Owner/Editor + joined
+	rallies.Post("/:id/events", loadParticipant, joined, ownerOrEditor, eventHandler.CreateEvent)                              // Owner/Editor + joined
+	rallies.Get("/:id/participants", loadParticipant, joined, participantHandler.GetParticipantsList)                          // Any joined participant
+	rallies.Get("/:id/invitable-friends", loadParticipant, joined, participantHandler.GetInvitableFriends)                     // Any joined participant
+	rallies.Post("/:id/participants", loadParticipant, joined, ownerOrEditor, participantHandler.InviteParticipant)            // Owner/Editor + joined
+	rallies.Put("/:id/participants/:participantId", loadParticipant, participantHandler.UpdateParticipant)                     // Conditional — service handles self vs. others
+	rallies.Post("/:id/invite-links", loadParticipant, joined, ownerOrEditor, inviteLinkHandler.CreateInviteLink)              // Owner/Editor + joined (extra owner check for elevated roles in service)
+	rallies.Get("/:id/invite-links", loadParticipant, joined, ownerOrEditor, inviteLinkHandler.GetActiveInviteLinks)           // Owner/Editor + joined
+	rallies.Delete("/:id/invite-links/:token", loadParticipant, joined, ownerOrEditor, inviteLinkHandler.DeactivateInviteLink) // Owner/Editor + joined
+
+	// Event routes (auth + resolved user, rally access checked in service via event lookup)
+	events := v1.Group("/events", auth, resolveUser)
 	events.Put("/:id", eventHandler.UpdateEvent)
 	events.Post("/:id/activities", activityHandler.CreateActivity)
 
-	// Activity routes (all require auth)
-	activities := v1.Group("/activities", auth)
+	// Activity routes (auth + resolved user, rally access checked in service via activity lookup)
+	activities := v1.Group("/activities", auth, resolveUser)
 	activities.Put("/:id", activityHandler.UpdateActivity)
 
 	return app, nil

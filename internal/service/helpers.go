@@ -45,6 +45,9 @@ func validateRallyAccess(ctx context.Context, participantRepo repository.RallyPa
 	if participant == nil {
 		return errors.New("unauthorized: not a participant of this rally")
 	}
+	if participant.Status != model.ParticipationStatusJoined {
+		return errors.New("unauthorized: participant status is not active (must be joined)")
+	}
 
 	for _, role := range requiredRoles {
 		if string(participant.Role) == role {

@@ -15,6 +15,7 @@ type EventRepository interface {
 	CreateEvent(ctx context.Context, event *model.Event) error
 	GetEventByID(ctx context.Context, eventID string) (*model.Event, error)
 	UpdateEvent(ctx context.Context, eventID string, updates *model.UpdateEventRequest) (*model.Event, error)
+	CountEventsByRally(ctx context.Context, rallyID primitive.ObjectID) (int64, error)
 }
 
 type eventRepository struct {
@@ -108,4 +109,8 @@ func (r *eventRepository) UpdateEvent(ctx context.Context, eventID string, updat
 	}
 
 	return r.GetEventByID(ctx, eventID)
+}
+
+func (r *eventRepository) CountEventsByRally(ctx context.Context, rallyID primitive.ObjectID) (int64, error) {
+	return r.collection.CountDocuments(ctx, bson.M{"rally_id": rallyID})
 }

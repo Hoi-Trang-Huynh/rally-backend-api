@@ -52,13 +52,9 @@ func (s *ActivityService) validateRallyAccessViaEvent(ctx context.Context, userI
 }
 
 // CreateActivity creates a new activity within an event (requires owner or editor role in the event's rally)
-func (s *ActivityService) CreateActivity(ctx context.Context, idToken string, eventID string, req *model.CreateActivityRequest) (*model.ActivityResponse, error) {
-	user, err := authenticateUser(ctx, s.firebaseAuth, s.userRepo, idToken)
-	if err != nil {
-		return nil, err
-	}
+func (s *ActivityService) CreateActivity(ctx context.Context, user *model.User, eventID string, req *model.CreateActivityRequest) (*model.ActivityResponse, error) {
 
-	_, err = s.validateRallyAccessViaEvent(ctx, user.ID, eventID, []string{"owner", "editor"})
+	_, err := s.validateRallyAccessViaEvent(ctx, user.ID, eventID, []string{"owner", "editor"})
 	if err != nil {
 		return nil, err
 	}
@@ -87,11 +83,7 @@ func (s *ActivityService) CreateActivity(ctx context.Context, idToken string, ev
 }
 
 // UpdateActivity updates an existing activity (requires owner or editor role in the activity's rally)
-func (s *ActivityService) UpdateActivity(ctx context.Context, idToken string, activityID string, req *model.UpdateActivityRequest) (*model.ActivityResponse, error) {
-	user, err := authenticateUser(ctx, s.firebaseAuth, s.userRepo, idToken)
-	if err != nil {
-		return nil, err
-	}
+func (s *ActivityService) UpdateActivity(ctx context.Context, user *model.User, activityID string, req *model.UpdateActivityRequest) (*model.ActivityResponse, error) {
 
 	activity, err := s.activityRepo.GetActivityByID(ctx, activityID)
 	if err != nil {

@@ -65,10 +65,11 @@ type RallyResponse struct {
 	UpdatedAt     time.Time   `json:"updatedAt" example:"2025-01-15T10:30:00Z"`
 } //@name RallyResponse
 
-// RallyJoinResponse represents the API response for GetRally, including user's role
+// RallyJoinResponse represents the API response for GetRally, including user's role and status
 type RallyJoinResponse struct {
 	*RallyResponse
-	CurrentUserRole ParticipantRole `json:"currentUserRole" example:"owner"`
+	CurrentUserRole   ParticipantRole     `json:"currentUserRole" example:"owner"`
+	CurrentUserStatus ParticipationStatus `json:"currentUserStatus" example:"joined"`
 } //@name RallyJoinResponse
 
 // RallyListItem represents a simplified rally item for list views

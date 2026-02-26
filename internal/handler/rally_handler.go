@@ -33,7 +33,7 @@ func NewRallyHandler(rallyService *service.RallyService) *RallyHandler {
 // @Failure 401 {object} model.ErrorResponse "Unauthorized"
 // @Router /rallies [post]
 func (h *RallyHandler) CreateRally(c *fiber.Ctx) error {
-	idToken := c.Locals("idToken").(string)
+	user := c.Locals("user").(*model.User)
 
 	var req model.CreateRallyRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -51,18 +51,11 @@ func (h *RallyHandler) CreateRally(c *fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	response, err := h.rallyService.CreateRally(ctx, idToken, &req)
+	response, err := h.rallyService.CreateRally(ctx, user, &req)
 	if err != nil {
-		switch err.Error() {
-		case "invalid or expired token", "user not found":
-			return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
-				Message: err.Error(),
-			})
-		default:
-			return c.Status(fiber.StatusInternalServerError).JSON(model.ErrorResponse{
-				Message: "Failed to create rally",
-			})
-		}
+		return c.Status(fiber.StatusInternalServerError).JSON(model.ErrorResponse{
+			Message: "Failed to create rally",
+		})
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(response)
@@ -86,13 +79,6 @@ func (h *RallyHandler) CreateRally(c *fiber.Ctx) error {
 // @Router /rallies/{id} [put]
 func (h *RallyHandler) UpdateRally(c *fiber.Ctx) error {
 	rallyID := c.Params("id")
-	if rallyID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(model.ErrorResponse{
-			Message: "Rally ID is required",
-		})
-	}
-
-	idToken := c.Locals("idToken").(string)
 
 	var req model.UpdateRallyRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -104,17 +90,9 @@ func (h *RallyHandler) UpdateRally(c *fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	response, err := h.rallyService.UpdateRally(ctx, idToken, rallyID, &req)
+	response, err := h.rallyService.UpdateRally(ctx, rallyID, &req)
 	if err != nil {
 		switch err.Error() {
-		case "invalid or expired token", "user not found":
-			return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
-				Message: err.Error(),
-			})
-		case "unauthorized: insufficient permissions", "unauthorized: not a participant of this rally":
-			return c.Status(fiber.StatusForbidden).JSON(model.ErrorResponse{
-				Message: err.Error(),
-			})
 		case "rally not found":
 			return c.Status(fiber.StatusNotFound).JSON(model.ErrorResponse{
 				Message: err.Error(),
@@ -232,29 +210,19 @@ func (h *RallyHandler) GetRalliesList(c *fiber.Ctx) error {
 // @Router /rallies/{id} [get]
 func (h *RallyHandler) GetRally(c *fiber.Ctx) error {
 	rallyID := c.Params("id")
-	if rallyID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(model.ErrorResponse{
-			Message: "Rally ID is required",
-		})
-	}
-
-	idToken := c.Locals("idToken").(string)
+	participant := c.Locals("rallyParticipant").(*model.RallyParticipant)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	response, err := h.rallyService.GetRally(ctx, idToken, rallyID)
+	response, err := h.rallyService.GetRally(ctx, participant, rallyID)
 	if err != nil {
 		switch err.Error() {
-		case "invalid or expired token", "user not found":
-			return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
-				Message: err.Error(),
-			})
-		case "unauthorized: not a participant of this rally", "unauthorized: you have been invited but not yet joined this rally":
+		case "unauthorized: you must be joined or invited to view this rally":
 			return c.Status(fiber.StatusForbidden).JSON(model.ErrorResponse{
 				Message: err.Error(),
 			})
-		case "rally not found", "invalid rally ID":
+		case "rally not found":
 			return c.Status(fiber.StatusNotFound).JSON(model.ErrorResponse{
 				Message: err.Error(),
 			})

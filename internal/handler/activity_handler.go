@@ -43,7 +43,7 @@ func (h *ActivityHandler) CreateActivity(c *fiber.Ctx) error {
 		})
 	}
 
-	idToken := c.Locals("idToken").(string)
+	user := c.Locals("user").(*model.User)
 
 	var req model.CreateActivityRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -61,14 +61,10 @@ func (h *ActivityHandler) CreateActivity(c *fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	response, err := h.activityService.CreateActivity(ctx, idToken, eventID, &req)
+	response, err := h.activityService.CreateActivity(ctx, user, eventID, &req)
 	if err != nil {
 		switch err.Error() {
-		case "invalid or expired token", "user not found":
-			return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
-				Message: err.Error(),
-			})
-		case "unauthorized: insufficient permissions", "unauthorized: not a participant of this rally":
+		case "unauthorized: insufficient permissions", "unauthorized: not a participant of this rally", "unauthorized: participant status is not active (must be joined)":
 			return c.Status(fiber.StatusForbidden).JSON(model.ErrorResponse{
 				Message: err.Error(),
 			})
@@ -110,7 +106,7 @@ func (h *ActivityHandler) UpdateActivity(c *fiber.Ctx) error {
 		})
 	}
 
-	idToken := c.Locals("idToken").(string)
+	user := c.Locals("user").(*model.User)
 
 	var req model.UpdateActivityRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -122,14 +118,10 @@ func (h *ActivityHandler) UpdateActivity(c *fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	response, err := h.activityService.UpdateActivity(ctx, idToken, activityID, &req)
+	response, err := h.activityService.UpdateActivity(ctx, user, activityID, &req)
 	if err != nil {
 		switch err.Error() {
-		case "invalid or expired token", "user not found":
-			return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
-				Message: err.Error(),
-			})
-		case "unauthorized: insufficient permissions", "unauthorized: not a participant of this rally":
+		case "unauthorized: insufficient permissions", "unauthorized: not a participant of this rally", "unauthorized: participant status is not active (must be joined)":
 			return c.Status(fiber.StatusForbidden).JSON(model.ErrorResponse{
 				Message: err.Error(),
 			})

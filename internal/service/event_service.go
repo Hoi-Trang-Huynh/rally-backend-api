@@ -35,16 +35,8 @@ func NewEventService(
 	}
 }
 
-// CreateEvent creates a new event within a rally (requires owner or editor role)
-func (s *EventService) CreateEvent(ctx context.Context, idToken string, rallyID string, req *model.CreateEventRequest) (*model.EventResponse, error) {
-	user, err := authenticateUser(ctx, s.firebaseAuth, s.userRepo, idToken)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := validateRallyAccess(ctx, s.participantRepo, user.ID, rallyID, []string{"owner", "editor"}); err != nil {
-		return nil, err
-	}
+// CreateEvent creates a new event within a rally (middleware ensures owner or editor role)
+func (s *EventService) CreateEvent(ctx context.Context, user *model.User, rallyID string, req *model.CreateEventRequest) (*model.EventResponse, error) {
 
 	rally, err := s.rallyRepo.GetRallyByID(ctx, rallyID)
 	if err != nil {
@@ -76,11 +68,7 @@ func (s *EventService) CreateEvent(ctx context.Context, idToken string, rallyID 
 }
 
 // UpdateEvent updates an existing event (requires owner or editor role in the event's rally)
-func (s *EventService) UpdateEvent(ctx context.Context, idToken string, eventID string, req *model.UpdateEventRequest) (*model.EventResponse, error) {
-	user, err := authenticateUser(ctx, s.firebaseAuth, s.userRepo, idToken)
-	if err != nil {
-		return nil, err
-	}
+func (s *EventService) UpdateEvent(ctx context.Context, user *model.User, eventID string, req *model.UpdateEventRequest) (*model.EventResponse, error) {
 
 	event, err := s.eventRepo.GetEventByID(ctx, eventID)
 	if err != nil {

@@ -38,11 +38,7 @@ func NewRallyService(
 }
 
 // CreateRally creates a new rally, auto-adds the creator as owner, and invites participants
-func (s *RallyService) CreateRally(ctx context.Context, idToken string, req *model.CreateRallyRequest) (*model.RallyResponse, error) {
-	user, err := authenticateUser(ctx, s.firebaseAuth, s.userRepo, idToken)
-	if err != nil {
-		return nil, err
-	}
+func (s *RallyService) CreateRally(ctx context.Context, user *model.User, req *model.CreateRallyRequest) (*model.RallyResponse, error) {
 
 	session, err := s.db.Client().StartSession()
 	if err != nil {
@@ -139,16 +135,8 @@ func (s *RallyService) CreateRally(ctx context.Context, idToken string, req *mod
 	return rallyResponse, nil
 }
 
-// UpdateRally updates an existing rally (requires owner or editor role)
-func (s *RallyService) UpdateRally(ctx context.Context, idToken string, rallyID string, req *model.UpdateRallyRequest) (*model.RallyResponse, error) {
-	user, err := authenticateUser(ctx, s.firebaseAuth, s.userRepo, idToken)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := validateRallyAccess(ctx, s.participantRepo, user.ID, rallyID, []string{"owner", "editor"}); err != nil {
-		return nil, err
-	}
+// UpdateRally updates an existing rally (middleware ensures owner or editor role)
+func (s *RallyService) UpdateRally(ctx context.Context, rallyID string, req *model.UpdateRallyRequest) (*model.RallyResponse, error) {
 
 	existing, err := s.rallyRepo.GetRallyByID(ctx, rallyID)
 	if err != nil {
@@ -226,31 +214,11 @@ func (s *RallyService) GetRalliesList(ctx context.Context, idToken string, userI
 	}, nil
 }
 
-// GetRally retrieves a specific rally by ID, ensuring the user has joined
-func (s *RallyService) GetRally(ctx context.Context, idToken string, rallyID string) (*model.RallyJoinResponse, error) {
-	user, err := authenticateUser(ctx, s.firebaseAuth, s.userRepo, idToken)
-	if err != nil {
-		return nil, err
-	}
-
-	rallyObjID, err := primitive.ObjectIDFromHex(rallyID)
-	if err != nil {
-		return nil, errors.New("invalid rally ID")
-	}
-
-	// Check participation status
-	participant, err := s.participantRepo.GetParticipantByRallyAndUser(ctx, rallyObjID, user.ID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to check participation: %w", err)
-	}
-
-	if participant == nil {
-		return nil, errors.New("unauthorized: not a participant of this rally")
-	}
-
-	// Explicitly check for 'joined' status
-	if participant.Status != model.ParticipationStatusJoined {
-		return nil, errors.New("unauthorized: you have been invited but not yet joined this rally")
+// GetRally retrieves a specific rally by ID (middleware ensures participant exists)
+func (s *RallyService) GetRally(ctx context.Context, participant *model.RallyParticipant, rallyID string) (*model.RallyJoinResponse, error) {
+	// Middleware already loaded participant; check for allowed statuses
+	if participant.Status != model.ParticipationStatusJoined && participant.Status != model.ParticipationStatusInvited {
+		return nil, errors.New("unauthorized: you must be joined or invited to view this rally")
 	}
 
 	// Fetch rally details
@@ -263,8 +231,9 @@ func (s *RallyService) GetRally(ctx context.Context, idToken string, rallyID str
 	}
 
 	return &model.RallyJoinResponse{
-		RallyResponse:   s.ConvertToRallyResponse(rally),
-		CurrentUserRole: participant.Role,
+		RallyResponse:     s.ConvertToRallyResponse(rally),
+		CurrentUserRole:   participant.Role,
+		CurrentUserStatus: participant.Status,
 	}, nil
 }
 

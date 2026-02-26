@@ -37,13 +37,7 @@ func NewRallyParticipantHandler(participantService *service.RallyParticipantServ
 // @Router /rallies/{id}/participants [post]
 func (h *RallyParticipantHandler) InviteParticipant(c *fiber.Ctx) error {
 	rallyID := c.Params("id")
-	if rallyID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(model.ErrorResponse{
-			Message: "Rally ID is required",
-		})
-	}
-
-	idToken := c.Locals("idToken").(string)
+	user := c.Locals("user").(*model.User)
 
 	var req model.InviteParticipantRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -61,17 +55,9 @@ func (h *RallyParticipantHandler) InviteParticipant(c *fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	response, err := h.participantService.InviteParticipant(ctx, idToken, rallyID, &req)
+	response, err := h.participantService.InviteParticipant(ctx, user, rallyID, &req)
 	if err != nil {
 		switch err.Error() {
-		case "invalid or expired token", "user not found":
-			return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
-				Message: err.Error(),
-			})
-		case "unauthorized: insufficient permissions", "unauthorized: not a participant of this rally":
-			return c.Status(fiber.StatusForbidden).JSON(model.ErrorResponse{
-				Message: err.Error(),
-			})
 		case "rally not found", "target user not found":
 			return c.Status(fiber.StatusNotFound).JSON(model.ErrorResponse{
 				Message: err.Error(),
@@ -109,12 +95,6 @@ func (h *RallyParticipantHandler) InviteParticipant(c *fiber.Ctx) error {
 // @Router /rallies/{id}/participants/{participantId} [put]
 func (h *RallyParticipantHandler) UpdateParticipant(c *fiber.Ctx) error {
 	rallyID := c.Params("id")
-	if rallyID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(model.ErrorResponse{
-			Message: "Rally ID is required",
-		})
-	}
-
 	participantID := c.Params("participantId")
 	if participantID == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(model.ErrorResponse{
@@ -122,7 +102,8 @@ func (h *RallyParticipantHandler) UpdateParticipant(c *fiber.Ctx) error {
 		})
 	}
 
-	idToken := c.Locals("idToken").(string)
+	user := c.Locals("user").(*model.User)
+	callerParticipant := c.Locals("rallyParticipant").(*model.RallyParticipant)
 
 	var req model.UpdateParticipantRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -134,14 +115,10 @@ func (h *RallyParticipantHandler) UpdateParticipant(c *fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	response, err := h.participantService.UpdateParticipant(ctx, idToken, rallyID, participantID, &req)
+	response, err := h.participantService.UpdateParticipant(ctx, user, callerParticipant, rallyID, participantID, &req)
 	if err != nil {
 		switch err.Error() {
-		case "invalid or expired token", "user not found":
-			return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
-				Message: err.Error(),
-			})
-		case "unauthorized: insufficient permissions", "unauthorized: not a participant of this rally":
+		case "unauthorized: only owners can change roles", "unauthorized: insufficient permissions", "unauthorized: participant status is not active":
 			return c.Status(fiber.StatusForbidden).JSON(model.ErrorResponse{
 				Message: err.Error(),
 			})
@@ -178,13 +155,6 @@ func (h *RallyParticipantHandler) UpdateParticipant(c *fiber.Ctx) error {
 // @Router /rallies/{id}/participants [get]
 func (h *RallyParticipantHandler) GetParticipantsList(c *fiber.Ctx) error {
 	rallyID := c.Params("id")
-	if rallyID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(model.ErrorResponse{
-			Message: "Rally ID is required",
-		})
-	}
-
-	idToken := c.Locals("idToken").(string)
 
 	roleFilter := c.Query("role", "")
 	if roleFilter != "" {
@@ -216,17 +186,9 @@ func (h *RallyParticipantHandler) GetParticipantsList(c *fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	response, err := h.participantService.GetParticipantsList(ctx, idToken, rallyID, roleFilter, page, pageSize)
+	response, err := h.participantService.GetParticipantsList(ctx, rallyID, roleFilter, page, pageSize)
 	if err != nil {
 		switch err.Error() {
-		case "invalid or expired token", "user not found":
-			return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
-				Message: err.Error(),
-			})
-		case "unauthorized: not a participant of this rally", "unauthorized: you have been invited but not yet joined this rally":
-			return c.Status(fiber.StatusForbidden).JSON(model.ErrorResponse{
-				Message: err.Error(),
-			})
 		case "invalid rally ID":
 			return c.Status(fiber.StatusBadRequest).JSON(model.ErrorResponse{
 				Message: err.Error(),
@@ -260,13 +222,7 @@ func (h *RallyParticipantHandler) GetParticipantsList(c *fiber.Ctx) error {
 // @Router /rallies/{id}/invitable-friends [get]
 func (h *RallyParticipantHandler) GetInvitableFriends(c *fiber.Ctx) error {
 	rallyID := c.Params("id")
-	if rallyID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(model.ErrorResponse{
-			Message: "Rally ID is required",
-		})
-	}
-
-	idToken := c.Locals("idToken").(string)
+	user := c.Locals("user").(*model.User)
 
 	query := c.Query("q", "")
 	page := c.QueryInt("page", 1)
@@ -285,17 +241,9 @@ func (h *RallyParticipantHandler) GetInvitableFriends(c *fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	response, err := h.participantService.GetInvitableFriends(ctx, idToken, rallyID, query, page, pageSize)
+	response, err := h.participantService.GetInvitableFriends(ctx, user, rallyID, query, page, pageSize)
 	if err != nil {
 		switch err.Error() {
-		case "invalid or expired token", "user not found":
-			return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
-				Message: err.Error(),
-			})
-		case "unauthorized: not a participant of this rally":
-			return c.Status(fiber.StatusForbidden).JSON(model.ErrorResponse{
-				Message: err.Error(),
-			})
 		case "rally not found", "invalid rally ID":
 			return c.Status(fiber.StatusNotFound).JSON(model.ErrorResponse{
 				Message: err.Error(),
