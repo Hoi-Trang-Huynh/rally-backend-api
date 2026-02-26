@@ -28,6 +28,7 @@ func Setup(cfg *config.Config) *fiber.App {
 	eventRepo := repository.NewEventRepository(db)
 	activityRepo := repository.NewActivityRepository(db)
 	participantRepo := repository.NewRallyParticipantRepository(db)
+	inviteLinkRepo := repository.NewInviteLinkRepository(db)
 
 	fbApp := firebase.GetClient()
 
@@ -36,7 +37,7 @@ func Setup(cfg *config.Config) *fiber.App {
 		panic(err)
 	}
 
-	app, err := SetupWithDeps(userRepo, followRepo, feedbackRepo, rallyRepo, eventRepo, activityRepo, participantRepo, fbApp, cld)
+	app, err := SetupWithDeps(userRepo, followRepo, feedbackRepo, rallyRepo, eventRepo, activityRepo, participantRepo, inviteLinkRepo, fbApp, cld)
 	if err != nil {
 		panic(err)
 	}
@@ -52,6 +53,7 @@ func SetupWithDeps(
 	eventRepo repository.EventRepository,
 	activityRepo repository.ActivityRepository,
 	participantRepo repository.RallyParticipantRepository,
+	inviteLinkRepo repository.InviteLinkRepository,
 	fbApp *fb.App,
 	cld *utils.CloudinaryUploader,
 ) (*fiber.App, error) {
@@ -75,6 +77,7 @@ func SetupWithDeps(
 	eventService := service.NewEventService(firebaseAuth, eventRepo, rallyRepo, participantRepo, userRepo)
 	activityService := service.NewActivityService(firebaseAuth, activityRepo, eventRepo, participantRepo, userRepo)
 	participantService := service.NewRallyParticipantService(firebaseAuth, participantRepo, rallyRepo, userRepo, followRepo)
+	inviteLinkService := service.NewInviteLinkService(firebaseAuth, inviteLinkRepo, participantRepo, rallyRepo, userRepo)
 
 	authHandler := handler.NewAuthHandler(authService)
 	userHandler := handler.NewUserHandler(userService)
@@ -85,6 +88,7 @@ func SetupWithDeps(
 	eventHandler := handler.NewEventHandler(eventService)
 	activityHandler := handler.NewActivityHandler(activityService)
 	participantHandler := handler.NewRallyParticipantHandler(participantService)
+	inviteLinkHandler := handler.NewInviteLinkHandler(inviteLinkService)
 
 	auth := middleware.AuthRequired()
 
@@ -126,6 +130,7 @@ func SetupWithDeps(
 
 	// Rally routes (all require auth)
 	rallies := v1.Group("/rallies", auth)
+	rallies.Post("/join-via-link", inviteLinkHandler.JoinViaLink)
 	rallies.Post("/", rallyHandler.CreateRally)
 	rallies.Get("/:id", rallyHandler.GetRally)
 	rallies.Put("/:id", rallyHandler.UpdateRally)
@@ -134,6 +139,9 @@ func SetupWithDeps(
 	rallies.Get("/:id/invitable-friends", participantHandler.GetInvitableFriends)
 	rallies.Post("/:id/participants", participantHandler.InviteParticipant)
 	rallies.Put("/:id/participants/:participantId", participantHandler.UpdateParticipant)
+	rallies.Post("/:id/invite-links", inviteLinkHandler.CreateInviteLink)
+	rallies.Get("/:id/invite-links", inviteLinkHandler.GetActiveInviteLinks)
+	rallies.Delete("/:id/invite-links/:token", inviteLinkHandler.DeactivateInviteLink)
 
 	// Event routes (all require auth)
 	events := v1.Group("/events", auth)
