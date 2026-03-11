@@ -59,7 +59,10 @@ func (s *ActivityService) CreateActivity(ctx context.Context, user *model.User, 
 		return nil, err
 	}
 
-	eventObjID, _ := primitive.ObjectIDFromHex(eventID)
+	eventObjID, err := primitive.ObjectIDFromHex(eventID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid event ID: %w", err)
+	}
 	activity := &model.Activity{
 		ID:            primitive.NewObjectID(),
 		EventID:       eventObjID,

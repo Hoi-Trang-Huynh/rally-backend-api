@@ -67,9 +67,16 @@ func (h *AuthHandler) RegisterOrLogin(c *fiber.Ctx) error {
 	// Verify Firebase token and get/create user
 	user, err := h.authService.RegisterOrLogin(ctx, req.IDToken)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(model.ErrorResponse{
-			Message: err.Error(),
-		})
+		switch err.Error() {
+		case "invalid or expired Firebase token", "email not found in token claims":
+			return c.Status(fiber.StatusBadRequest).JSON(model.ErrorResponse{
+				Message: err.Error(),
+			})
+		default:
+			return c.Status(fiber.StatusInternalServerError).JSON(model.ErrorResponse{
+				Message: "Failed to register or login",
+			})
+		}
 	}
 
 	message := "User logged in successfully"
@@ -116,9 +123,16 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	// Verify token
 	user, err := h.authService.Login(ctx, req.IDToken)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(model.ErrorResponse{
-			Message: err.Error(),
-		})
+		switch err.Error() {
+		case "invalid or expired Firebase token", "user not found":
+			return c.Status(fiber.StatusBadRequest).JSON(model.ErrorResponse{
+				Message: err.Error(),
+			})
+		default:
+			return c.Status(fiber.StatusInternalServerError).JSON(model.ErrorResponse{
+				Message: "Failed to login",
+			})
+		}
 	}
 
 	return c.Status(fiber.StatusOK).JSON(model.LoginResponse{
@@ -151,7 +165,7 @@ func (h *AuthHandler) CheckEmailAvailability(c *fiber.Ctx) error {
 	available, err := h.authService.CheckEmailAvailability(ctx, email)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(model.ErrorResponse{
-			Message: err.Error(),
+			Message: "Failed to check email availability",
 		})
 	}
 
@@ -190,7 +204,7 @@ func (h *AuthHandler) CheckUsernameAvailability(c *fiber.Ctx) error {
 	available, err := h.authService.CheckUsernameAvailability(ctx, username)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(model.ErrorResponse{
-			Message: err.Error(),
+			Message: "Failed to check username availability",
 		})
 	}
 

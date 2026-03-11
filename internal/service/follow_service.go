@@ -8,6 +8,7 @@ import (
 	"firebase.google.com/go/v4/auth"
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/model"
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/repository"
+	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/utils"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -187,16 +188,7 @@ func (s *FollowService) GetUserPublicProfile(ctx context.Context, userID string)
 
 // GetFollowersList retrieves the list of users who follow the given user
 func (s *FollowService) GetFollowersList(ctx context.Context, userID string, page, pageSize int) (*model.FollowListResponse, error) {
-	// Validate pagination
-	if page < 1 {
-		page = 1
-	}
-	if pageSize < 1 {
-		pageSize = 20
-	}
-	if pageSize > 50 {
-		pageSize = 50
-	}
+	page, pageSize = utils.ClampPagination(page, pageSize, 50)
 
 	// Convert user ID to ObjectID
 	userObjID, err := primitive.ObjectIDFromHex(userID)
@@ -226,11 +218,7 @@ func (s *FollowService) GetFollowersList(ctx context.Context, userID string, pag
 		})
 	}
 
-	// Calculate total pages
-	totalPages := int(total) / pageSize
-	if int(total)%pageSize > 0 {
-		totalPages++
-	}
+	totalPages := utils.CalcTotalPages(total, pageSize)
 
 	return &model.FollowListResponse{
 		Users:      users,
@@ -243,16 +231,7 @@ func (s *FollowService) GetFollowersList(ctx context.Context, userID string, pag
 
 // GetFollowingList retrieves the list of users that the given user follows
 func (s *FollowService) GetFollowingList(ctx context.Context, userID string, page, pageSize int) (*model.FollowListResponse, error) {
-	// Validate pagination
-	if page < 1 {
-		page = 1
-	}
-	if pageSize < 1 {
-		pageSize = 20
-	}
-	if pageSize > 50 {
-		pageSize = 50
-	}
+	page, pageSize = utils.ClampPagination(page, pageSize, 50)
 
 	// Convert user ID to ObjectID
 	userObjID, err := primitive.ObjectIDFromHex(userID)
@@ -282,11 +261,7 @@ func (s *FollowService) GetFollowingList(ctx context.Context, userID string, pag
 		})
 	}
 
-	// Calculate total pages
-	totalPages := int(total) / pageSize
-	if int(total)%pageSize > 0 {
-		totalPages++
-	}
+	totalPages := utils.CalcTotalPages(total, pageSize)
 
 	return &model.FollowListResponse{
 		Users:      users,
@@ -299,16 +274,7 @@ func (s *FollowService) GetFollowingList(ctx context.Context, userID string, pag
 
 // GetFriendsList retrieves the list of mutual friends for a given user with optional search
 func (s *FollowService) GetFriendsList(ctx context.Context, userID string, query string, page, pageSize int) (*model.FriendListResponse, error) {
-	// Validate pagination
-	if page < 1 {
-		page = 1
-	}
-	if pageSize < 1 {
-		pageSize = 20
-	}
-	if pageSize > 50 {
-		pageSize = 50
-	}
+	page, pageSize = utils.ClampPagination(page, pageSize, 50)
 
 	// Convert user ID to ObjectID
 	userObjID, err := primitive.ObjectIDFromHex(userID)
@@ -338,11 +304,7 @@ func (s *FollowService) GetFriendsList(ctx context.Context, userID string, query
 		})
 	}
 
-	// Calculate total pages
-	totalPages := int(total) / pageSize
-	if int(total)%pageSize > 0 {
-		totalPages++
-	}
+	totalPages := utils.CalcTotalPages(total, pageSize)
 
 	return &model.FriendListResponse{
 		Users:      users,

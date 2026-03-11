@@ -6,6 +6,7 @@ import (
 
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/model"
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/service"
+	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/utils"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -170,18 +171,7 @@ func (h *RallyParticipantHandler) GetParticipantsList(c *fiber.Ctx) error {
 		}
 	}
 
-	page := c.QueryInt("page", 1)
-	pageSize := c.QueryInt("pageSize", 20)
-
-	if page < 1 {
-		page = 1
-	}
-	if pageSize < 1 {
-		pageSize = 20
-	}
-	if pageSize > 100 {
-		pageSize = 100
-	}
+	page, pageSize := utils.ClampPagination(c.QueryInt("page", 1), c.QueryInt("pageSize", 20), 50)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -225,18 +215,7 @@ func (h *RallyParticipantHandler) GetInvitableFriends(c *fiber.Ctx) error {
 	user := c.Locals("user").(*model.User)
 
 	query := c.Query("q", "")
-	page := c.QueryInt("page", 1)
-	pageSize := c.QueryInt("pageSize", 20)
-
-	if page < 1 {
-		page = 1
-	}
-	if pageSize < 1 {
-		pageSize = 20
-	}
-	if pageSize > 50 {
-		pageSize = 50
-	}
+	page, pageSize := utils.ClampPagination(c.QueryInt("page", 1), c.QueryInt("pageSize", 20), 50)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

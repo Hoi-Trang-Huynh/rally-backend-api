@@ -8,6 +8,7 @@ import (
 	"firebase.google.com/go/v4/auth"
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/model"
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/repository"
+	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/utils"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -57,7 +58,10 @@ func (s *RallyParticipantService) InviteParticipant(ctx context.Context, user *m
 	}
 
 	// Check for duplicate participant
-	rallyObjID, _ := primitive.ObjectIDFromHex(rallyID)
+	rallyObjID, err := primitive.ObjectIDFromHex(rallyID)
+	if err != nil {
+		return nil, errors.New("invalid rally ID")
+	}
 	existing, err := s.participantRepo.GetParticipantByRallyAndUser(ctx, rallyObjID, targetUser.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check existing participant: %w", err)
@@ -160,15 +164,7 @@ func (s *RallyParticipantService) GetParticipantsList(ctx context.Context, rally
 		return nil, fmt.Errorf("failed to get participants list: %w", err)
 	}
 
-	// Calculate pagination using utils (assuming utils is available, adjust if not, or just handle manually)
-	// If utils is not imported, let's do it manually:
-	totalPages := int(total) / pageSize
-	if int(total)%pageSize > 0 {
-		totalPages++
-	}
-	if totalPages == 0 {
-		totalPages = 1
-	}
+	totalPages := utils.CalcTotalPages(total, pageSize)
 
 	return &model.ParticipantListResponse{
 		Participants: participants,
@@ -204,13 +200,7 @@ func (s *RallyParticipantService) GetInvitableFriends(ctx context.Context, user 
 		return nil, fmt.Errorf("failed to get invitable friends: %w", err)
 	}
 
-	totalPages := int(total) / pageSize
-	if int(total)%pageSize > 0 {
-		totalPages++
-	}
-	if totalPages == 0 {
-		totalPages = 1
-	}
+	totalPages := utils.CalcTotalPages(total, pageSize)
 
 	return &model.FriendListResponse{
 		Users:      users,

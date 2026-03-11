@@ -1,11 +1,13 @@
 package handler
 
 import (
-	"strconv"
+	"context"
 	"strings"
+	"time"
 
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/model"
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/service"
+	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/utils"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -48,7 +50,10 @@ func (h *FeedbackHandler) CreateFeedback(c *fiber.Ctx) error {
 		})
 	}
 
-	feedback, err := h.service.SubmitFeedback(c.Context(), req)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	feedback, err := h.service.SubmitFeedback(ctx, req)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(model.ErrorResponse{
 			Message: "Failed to create feedback",
@@ -65,15 +70,14 @@ func (h *FeedbackHandler) CreateFeedback(c *fiber.Ctx) error {
 // @Accept json
 // @Produce json
 // @Param page query int false "Page number (default: 1)"
-// @Param page_size query int false "Items per page (default: 20)"
+// @Param pageSize query int false "Items per page (default: 20)"
 // @Param username query string false "Filter by username"
 // @Param categories query string false "Filter by categories (comma-separated)"
 // @Success 200 {object} model.FeedbackListResponse
 // @Failure 500 {object} model.ErrorResponse
 // @Router /api/v1/feedback [get]
 func (h *FeedbackHandler) GetFeedbackList(c *fiber.Ctx) error {
-	page, _ := strconv.Atoi(c.Query("page", "1"))
-	pageSize, _ := strconv.Atoi(c.Query("page_size", "20"))
+	page, pageSize := utils.ClampPagination(c.QueryInt("page", 1), c.QueryInt("pageSize", 20), 50)
 	username := c.Query("username")
 
 	var categories []string
@@ -82,7 +86,10 @@ func (h *FeedbackHandler) GetFeedbackList(c *fiber.Ctx) error {
 		categories = strings.Split(catsQuery, ",")
 	}
 
-	response, err := h.service.ListFeedbacks(c.Context(), page, pageSize, username, categories)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	response, err := h.service.ListFeedbacks(ctx, page, pageSize, username, categories)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(model.ErrorResponse{
 			Message: "Failed to fetch feedbacks",
@@ -119,7 +126,10 @@ func (h *FeedbackHandler) UpdateFeedbackStatus(c *fiber.Ctx) error {
 		})
 	}
 
-	err := h.service.ResolveFeedback(c.Context(), id, req.Resolved)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	err := h.service.ResolveFeedback(ctx, id, req.Resolved)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(model.ErrorResponse{
 			Message: "Failed to update feedback status",

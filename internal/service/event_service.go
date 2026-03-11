@@ -46,7 +46,10 @@ func (s *EventService) CreateEvent(ctx context.Context, user *model.User, rallyI
 		return nil, errors.New("rally not found")
 	}
 
-	rallyObjID, _ := primitive.ObjectIDFromHex(rallyID)
+	rallyObjID, err := primitive.ObjectIDFromHex(rallyID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid rally ID: %w", err)
+	}
 	event := &model.Event{
 		ID:            primitive.NewObjectID(),
 		RallyID:       rallyObjID,

@@ -68,7 +68,7 @@ func (h *InviteLinkHandler) CreateInviteLink(c *fiber.Ctx) error {
 			})
 		default:
 			return c.Status(fiber.StatusInternalServerError).JSON(model.ErrorResponse{
-				Message: "Failed to create invite link: " + err.Error(),
+				Message: "Failed to create invite link",
 			})
 		}
 	}

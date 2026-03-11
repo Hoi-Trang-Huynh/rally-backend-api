@@ -6,6 +6,7 @@ import (
 
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/model"
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/repository"
+	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/utils"
 )
 
 type FeedbackService struct {
@@ -37,22 +38,14 @@ func (s *FeedbackService) SubmitFeedback(ctx context.Context, req model.CreateFe
 }
 
 func (s *FeedbackService) ListFeedbacks(ctx context.Context, page, pageSize int, username string, categories []string) (*model.FeedbackListResponse, error) {
-	if page < 1 {
-		page = 1
-	}
-	if pageSize < 1 {
-		pageSize = 20
-	}
+	page, pageSize = utils.ClampPagination(page, pageSize, 50)
 
 	feedbacks, total, err := s.repo.GetFeedbacks(ctx, page, pageSize, username, categories)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list feedbacks: %w", err)
 	}
 
-	totalPages := int(total) / pageSize
-	if int(total)%pageSize > 0 {
-		totalPages++
-	}
+	totalPages := utils.CalcTotalPages(total, pageSize)
 
 	return &model.FeedbackListResponse{
 		Feedbacks:  feedbacks,

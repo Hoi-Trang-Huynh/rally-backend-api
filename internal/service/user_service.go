@@ -8,6 +8,7 @@ import (
 	"firebase.google.com/go/v4/auth"
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/model"
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/repository"
+	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/utils"
 )
 
 type UserService struct {
@@ -109,16 +110,7 @@ func (s *UserService) ConvertToProfileDetailsResponse(user *model.User) *model.P
 
 // SearchUsers searches for users by query string with pagination
 func (s *UserService) SearchUsers(ctx context.Context, query string, page, pageSize int) (*model.UserSearchResponse, error) {
-	// Validate pagination parameters
-	if page < 1 {
-		page = 1
-	}
-	if pageSize < 1 {
-		pageSize = 20
-	}
-	if pageSize > 50 {
-		pageSize = 50 // Max page size to prevent abuse
-	}
+	page, pageSize = utils.ClampPagination(page, pageSize, 50)
 
 	users, total, err := s.userRepo.SearchUsers(ctx, query, page, pageSize)
 	if err != nil {
@@ -137,11 +129,7 @@ func (s *UserService) SearchUsers(ctx context.Context, query string, page, pageS
 		}
 	}
 
-	// Calculate total pages
-	totalPages := int(total) / pageSize
-	if int(total)%pageSize > 0 {
-		totalPages++
-	}
+	totalPages := utils.CalcTotalPages(total, pageSize)
 
 	return &model.UserSearchResponse{
 		Users:      results,
