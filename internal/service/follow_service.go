@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 
-	firebase "firebase.google.com/go/v4"
 	"firebase.google.com/go/v4/auth"
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/model"
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/repository"
+	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/utils"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -18,34 +18,20 @@ type FollowService struct {
 	userRepo     repository.UserRepository
 }
 
-func NewFollowService(firebaseApp *firebase.App, followRepo repository.FollowRepository, userRepo repository.UserRepository) (*FollowService, error) {
-	authClient, err := firebaseApp.Auth(context.Background())
-	if err != nil {
-		return nil, fmt.Errorf("error getting Auth client: %w", err)
-	}
-
+func NewFollowService(firebaseAuth *auth.Client, followRepo repository.FollowRepository, userRepo repository.UserRepository) *FollowService {
 	return &FollowService{
-		firebaseAuth: authClient,
+		firebaseAuth: firebaseAuth,
 		followRepo:   followRepo,
 		userRepo:     userRepo,
-	}, nil
+	}
 }
 
 // FollowUser creates a follow relationship between the authenticated user and target user
 func (s *FollowService) FollowUser(ctx context.Context, idToken string, targetUserID string) (*model.FollowResponse, error) {
 	// Verify Firebase token to get current user
-	token, err := s.firebaseAuth.VerifyIDToken(ctx, idToken)
+	currentUser, err := authenticateUser(ctx, s.firebaseAuth, s.userRepo, idToken)
 	if err != nil {
-		return nil, errors.New("invalid or expired token")
-	}
-
-	// Get current user by Firebase UID
-	currentUser, err := s.userRepo.GetUserByFirebaseUID(ctx, token.UID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get current user: %w", err)
-	}
-	if currentUser == nil {
-		return nil, errors.New("current user not found")
+		return nil, err
 	}
 
 	// Convert target user ID to ObjectID
@@ -107,18 +93,9 @@ func (s *FollowService) FollowUser(ctx context.Context, idToken string, targetUs
 // UnfollowUser removes a follow relationship between the authenticated user and target user
 func (s *FollowService) UnfollowUser(ctx context.Context, idToken string, targetUserID string) (*model.FollowResponse, error) {
 	// Verify Firebase token to get current user
-	token, err := s.firebaseAuth.VerifyIDToken(ctx, idToken)
+	currentUser, err := authenticateUser(ctx, s.firebaseAuth, s.userRepo, idToken)
 	if err != nil {
-		return nil, errors.New("invalid or expired token")
-	}
-
-	// Get current user by Firebase UID
-	currentUser, err := s.userRepo.GetUserByFirebaseUID(ctx, token.UID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get current user: %w", err)
-	}
-	if currentUser == nil {
-		return nil, errors.New("current user not found")
+		return nil, err
 	}
 
 	// Convert target user ID to ObjectID
@@ -165,18 +142,9 @@ func (s *FollowService) UnfollowUser(ctx context.Context, idToken string, target
 // IsFollowing checks if the authenticated user follows the target user
 func (s *FollowService) IsFollowing(ctx context.Context, idToken string, targetUserID string) (*model.FollowStatusResponse, error) {
 	// Verify Firebase token to get current user
-	token, err := s.firebaseAuth.VerifyIDToken(ctx, idToken)
+	currentUser, err := authenticateUser(ctx, s.firebaseAuth, s.userRepo, idToken)
 	if err != nil {
-		return nil, errors.New("invalid or expired token")
-	}
-
-	// Get current user by Firebase UID
-	currentUser, err := s.userRepo.GetUserByFirebaseUID(ctx, token.UID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get current user: %w", err)
-	}
-	if currentUser == nil {
-		return nil, errors.New("current user not found")
+		return nil, err
 	}
 
 	// Convert target user ID to ObjectID
@@ -220,16 +188,7 @@ func (s *FollowService) GetUserPublicProfile(ctx context.Context, userID string)
 
 // GetFollowersList retrieves the list of users who follow the given user
 func (s *FollowService) GetFollowersList(ctx context.Context, userID string, page, pageSize int) (*model.FollowListResponse, error) {
-	// Validate pagination
-	if page < 1 {
-		page = 1
-	}
-	if pageSize < 1 {
-		pageSize = 20
-	}
-	if pageSize > 50 {
-		pageSize = 50
-	}
+	page, pageSize = utils.ClampPagination(page, pageSize, 50)
 
 	// Convert user ID to ObjectID
 	userObjID, err := primitive.ObjectIDFromHex(userID)
@@ -259,11 +218,7 @@ func (s *FollowService) GetFollowersList(ctx context.Context, userID string, pag
 		})
 	}
 
-	// Calculate total pages
-	totalPages := int(total) / pageSize
-	if int(total)%pageSize > 0 {
-		totalPages++
-	}
+	totalPages := utils.CalcTotalPages(total, pageSize)
 
 	return &model.FollowListResponse{
 		Users:      users,
@@ -276,16 +231,7 @@ func (s *FollowService) GetFollowersList(ctx context.Context, userID string, pag
 
 // GetFollowingList retrieves the list of users that the given user follows
 func (s *FollowService) GetFollowingList(ctx context.Context, userID string, page, pageSize int) (*model.FollowListResponse, error) {
-	// Validate pagination
-	if page < 1 {
-		page = 1
-	}
-	if pageSize < 1 {
-		pageSize = 20
-	}
-	if pageSize > 50 {
-		pageSize = 50
-	}
+	page, pageSize = utils.ClampPagination(page, pageSize, 50)
 
 	// Convert user ID to ObjectID
 	userObjID, err := primitive.ObjectIDFromHex(userID)
@@ -315,13 +261,52 @@ func (s *FollowService) GetFollowingList(ctx context.Context, userID string, pag
 		})
 	}
 
-	// Calculate total pages
-	totalPages := int(total) / pageSize
-	if int(total)%pageSize > 0 {
-		totalPages++
-	}
+	totalPages := utils.CalcTotalPages(total, pageSize)
 
 	return &model.FollowListResponse{
+		Users:      users,
+		Total:      total,
+		Page:       page,
+		PageSize:   pageSize,
+		TotalPages: totalPages,
+	}, nil
+}
+
+// GetFriendsList retrieves the list of mutual friends for a given user with optional search
+func (s *FollowService) GetFriendsList(ctx context.Context, userID string, query string, page, pageSize int) (*model.FriendListResponse, error) {
+	page, pageSize = utils.ClampPagination(page, pageSize, 50)
+
+	// Convert user ID to ObjectID
+	userObjID, err := primitive.ObjectIDFromHex(userID)
+	if err != nil {
+		return nil, errors.New("invalid user ID")
+	}
+
+	// Get friends from repository
+	follows, total, err := s.followRepo.GetFriends(ctx, userObjID, query, page, pageSize)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get friends: %w", err)
+	}
+
+	// Fetch user details for each friend
+	users := make([]model.FollowUserItem, 0, len(follows))
+	for _, follow := range follows {
+		user, err := s.userRepo.GetUserByID(ctx, follow.FollowingID.Hex())
+		if err != nil || user == nil {
+			continue // Skip if user not found
+		}
+		users = append(users, model.FollowUserItem{
+			ID:        user.ID.Hex(),
+			Username:  user.Username,
+			FirstName: user.FirstName,
+			LastName:  user.LastName,
+			AvatarUrl: user.AvatarUrl,
+		})
+	}
+
+	totalPages := utils.CalcTotalPages(total, pageSize)
+
+	return &model.FriendListResponse{
 		Users:      users,
 		Total:      total,
 		Page:       page,

@@ -2,11 +2,11 @@ package handler
 
 import (
 	"context"
-	"strconv"
 	"time"
 
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/model"
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/service"
+	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/utils"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -42,31 +42,15 @@ func (h *FollowHandler) FollowUser(c *fiber.Ctx) error {
 		})
 	}
 
-	// Get Firebase token from Authorization header
-	authHeader := c.Get("Authorization")
-	if authHeader == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
-			Message: "Authorization header is required",
-		})
-	}
+	idToken := c.Locals("idToken").(string)
 
-	// Extract token from "Bearer <token>" format
-	if len(authHeader) < 7 || authHeader[:7] != "Bearer " {
-		return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
-			Message: "Invalid authorization format. Use 'Bearer <token>'",
-		})
-	}
-	idToken := authHeader[7:]
-
-	// Create context with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Follow the user
 	response, err := h.followService.FollowUser(ctx, idToken, targetUserID)
 	if err != nil {
 		switch err.Error() {
-		case "invalid or expired token":
+		case "invalid or expired token", "user not found":
 			return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
 				Message: err.Error(),
 			})
@@ -74,7 +58,7 @@ func (h *FollowHandler) FollowUser(c *fiber.Ctx) error {
 			return c.Status(fiber.StatusBadRequest).JSON(model.ErrorResponse{
 				Message: err.Error(),
 			})
-		case "target user not found", "current user not found":
+		case "target user not found":
 			return c.Status(fiber.StatusNotFound).JSON(model.ErrorResponse{
 				Message: err.Error(),
 			})
@@ -110,36 +94,16 @@ func (h *FollowHandler) UnfollowUser(c *fiber.Ctx) error {
 		})
 	}
 
-	// Get Firebase token from Authorization header
-	authHeader := c.Get("Authorization")
-	if authHeader == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
-			Message: "Authorization header is required",
-		})
-	}
+	idToken := c.Locals("idToken").(string)
 
-	// Extract token from "Bearer <token>" format
-	if len(authHeader) < 7 || authHeader[:7] != "Bearer " {
-		return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
-			Message: "Invalid authorization format. Use 'Bearer <token>'",
-		})
-	}
-	idToken := authHeader[7:]
-
-	// Create context with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Unfollow the user
 	response, err := h.followService.UnfollowUser(ctx, idToken, targetUserID)
 	if err != nil {
 		switch err.Error() {
-		case "invalid or expired token":
+		case "invalid or expired token", "user not found":
 			return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
-				Message: err.Error(),
-			})
-		case "current user not found":
-			return c.Status(fiber.StatusNotFound).JSON(model.ErrorResponse{
 				Message: err.Error(),
 			})
 		default:
@@ -173,36 +137,16 @@ func (h *FollowHandler) GetFollowStatus(c *fiber.Ctx) error {
 		})
 	}
 
-	// Get Firebase token from Authorization header
-	authHeader := c.Get("Authorization")
-	if authHeader == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
-			Message: "Authorization header is required",
-		})
-	}
+	idToken := c.Locals("idToken").(string)
 
-	// Extract token from "Bearer <token>" format
-	if len(authHeader) < 7 || authHeader[:7] != "Bearer " {
-		return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
-			Message: "Invalid authorization format. Use 'Bearer <token>'",
-		})
-	}
-	idToken := authHeader[7:]
-
-	// Create context with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Check follow status
 	response, err := h.followService.IsFollowing(ctx, idToken, targetUserID)
 	if err != nil {
 		switch err.Error() {
-		case "invalid or expired token":
+		case "invalid or expired token", "user not found":
 			return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
-				Message: err.Error(),
-			})
-		case "current user not found":
-			return c.Status(fiber.StatusNotFound).JSON(model.ErrorResponse{
 				Message: err.Error(),
 			})
 		default:
@@ -235,11 +179,9 @@ func (h *FollowHandler) GetUserPublicProfile(c *fiber.Ctx) error {
 		})
 	}
 
-	// Create context with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Get public profile
 	response, err := h.followService.GetUserPublicProfile(ctx, userID)
 	if err != nil {
 		if err.Error() == "user not found" {
@@ -276,27 +218,11 @@ func (h *FollowHandler) GetFollowersList(c *fiber.Ctx) error {
 		})
 	}
 
-	// Get pagination parameters
-	page := 1
-	pageSize := 20
+	page, pageSize := utils.ClampPagination(c.QueryInt("page", 1), c.QueryInt("pageSize", 20), 50)
 
-	if pageStr := c.Query("page"); pageStr != "" {
-		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
-			page = p
-		}
-	}
-
-	if pageSizeStr := c.Query("pageSize"); pageSizeStr != "" {
-		if ps, err := strconv.Atoi(pageSizeStr); err == nil && ps > 0 {
-			pageSize = ps
-		}
-	}
-
-	// Create context with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Get followers list
 	response, err := h.followService.GetFollowersList(ctx, userID, page, pageSize)
 	if err != nil {
 		if err.Error() == "invalid user ID" {
@@ -333,27 +259,11 @@ func (h *FollowHandler) GetFollowingList(c *fiber.Ctx) error {
 		})
 	}
 
-	// Get pagination parameters
-	page := 1
-	pageSize := 20
+	page, pageSize := utils.ClampPagination(c.QueryInt("page", 1), c.QueryInt("pageSize", 20), 50)
 
-	if pageStr := c.Query("page"); pageStr != "" {
-		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
-			page = p
-		}
-	}
-
-	if pageSizeStr := c.Query("pageSize"); pageSizeStr != "" {
-		if ps, err := strconv.Atoi(pageSizeStr); err == nil && ps > 0 {
-			pageSize = ps
-		}
-	}
-
-	// Create context with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Get following list
 	response, err := h.followService.GetFollowingList(ctx, userID, page, pageSize)
 	if err != nil {
 		if err.Error() == "invalid user ID" {
@@ -363,6 +273,50 @@ func (h *FollowHandler) GetFollowingList(c *fiber.Ctx) error {
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(model.ErrorResponse{
 			Message: "Failed to get following list",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(response)
+}
+
+// GetFriendsList godoc
+// @Summary Get user's friends list
+// @Description Get a paginated list of mutual friends (users who follow each other) with optional search
+// @Tags Follow
+// @ID getFriendsList
+// @Accept json
+// @Produce json
+// @Param id path string true "User ID"
+// @Param q query string false "Search query (matches username, first name, or last name)"
+// @Param page query int false "Page number (default: 1)"
+// @Param pageSize query int false "Number of results per page (default: 20, max: 50)"
+// @Success 200 {object} model.FriendListResponse
+// @Failure 400 {object} model.ErrorResponse "Invalid user ID"
+// @Router /user/{id}/friends [get]
+func (h *FollowHandler) GetFriendsList(c *fiber.Ctx) error {
+	userID := c.Params("id")
+	if userID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(model.ErrorResponse{
+			Message: "User ID is required",
+		})
+	}
+
+	query := c.Query("q")
+
+	page, pageSize := utils.ClampPagination(c.QueryInt("page", 1), c.QueryInt("pageSize", 20), 50)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	response, err := h.followService.GetFriendsList(ctx, userID, query, page, pageSize)
+	if err != nil {
+		if err.Error() == "invalid user ID" {
+			return c.Status(fiber.StatusBadRequest).JSON(model.ErrorResponse{
+				Message: err.Error(),
+			})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(model.ErrorResponse{
+			Message: "Failed to get friends list",
 		})
 	}
 

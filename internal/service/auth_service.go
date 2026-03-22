@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	firebase "firebase.google.com/go/v4"
 	"firebase.google.com/go/v4/auth"
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/model"
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/repository"
@@ -17,16 +16,11 @@ type AuthService struct {
 	userRepo     repository.UserRepository
 }
 
-func NewAuthService(firebaseApp *firebase.App, userRepo repository.UserRepository) (*AuthService, error) {
-	authClient, err := firebaseApp.Auth(context.Background())
-	if err != nil {
-		return nil, fmt.Errorf("error getting Auth client: %w", err)
-	}
-
+func NewAuthService(firebaseAuth *auth.Client, userRepo repository.UserRepository) *AuthService {
 	return &AuthService{
-		firebaseAuth: authClient,
+		firebaseAuth: firebaseAuth,
 		userRepo:     userRepo,
-	}, nil
+	}
 }
 
 func (s *AuthService) RegisterOrLogin(ctx context.Context, idToken string) (*model.User, error) {
@@ -77,6 +71,9 @@ func (s *AuthService) Login(ctx context.Context, idToken string) (*model.User, e
 
 	// Fetch user from DB
 	user, err := s.userRepo.GetUserByFirebaseUID(ctx, token.UID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user: %w", err)
+	}
 	if user == nil {
 		return nil, fmt.Errorf("user not found")
 	}

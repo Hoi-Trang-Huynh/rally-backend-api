@@ -2,11 +2,11 @@ package handler
 
 import (
 	"context"
-	"strconv"
 	"time"
 
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/model"
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/service"
+	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/utils"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -40,11 +40,9 @@ func (h *UserHandler) GetProfile(c *fiber.Ctx) error {
 		})
 	}
 
-	// Create context with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Get user profile
 	user, err := h.userService.GetUserProfile(ctx, userID)
 	if err != nil {
 		if err.Error() == "user not found" {
@@ -57,7 +55,6 @@ func (h *UserHandler) GetProfile(c *fiber.Ctx) error {
 		})
 	}
 
-	// Convert to response format
 	profile := h.userService.ConvertToProfileResponse(user)
 	return c.Status(fiber.StatusOK).JSON(profile)
 }
@@ -85,23 +82,8 @@ func (h *UserHandler) UpdateProfile(c *fiber.Ctx) error {
 		})
 	}
 
-	// Get Firebase token from Authorization header
-	authHeader := c.Get("Authorization")
-	if authHeader == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
-			Message: "Authorization header is required",
-		})
-	}
+	idToken := c.Locals("idToken").(string)
 
-	// Extract token from "Bearer <token>" format
-	if len(authHeader) < 7 || authHeader[:7] != "Bearer " {
-		return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
-			Message: "Invalid authorization format. Use 'Bearer <token>'",
-		})
-	}
-	idToken := authHeader[7:]
-
-	// Parse request body
 	var req model.ProfileUpdateRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(model.ErrorResponse{
@@ -109,11 +91,9 @@ func (h *UserHandler) UpdateProfile(c *fiber.Ctx) error {
 		})
 	}
 
-	// Create context with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Validate user ownership
 	if err := h.userService.ValidateUserOwnership(ctx, idToken, userID); err != nil {
 		if err.Error() == "unauthorized: cannot modify another user's profile" {
 			return c.Status(fiber.StatusForbidden).JSON(model.ErrorResponse{
@@ -125,7 +105,6 @@ func (h *UserHandler) UpdateProfile(c *fiber.Ctx) error {
 		})
 	}
 
-	// Update user profile
 	updatedUser, err := h.userService.UpdateUserProfile(ctx, userID, &req)
 	if err != nil {
 		if err.Error() == "user not found" {
@@ -138,7 +117,6 @@ func (h *UserHandler) UpdateProfile(c *fiber.Ctx) error {
 		})
 	}
 
-	// Convert to response format
 	profile := h.userService.ConvertToProfileResponse(updatedUser)
 	return c.Status(fiber.StatusOK).JSON(profile)
 }
@@ -156,27 +134,11 @@ func (h *UserHandler) UpdateProfile(c *fiber.Ctx) error {
 // @Failure 404 {object} model.ErrorResponse "User not found"
 // @Router /users/me/profile [get]
 func (h *UserHandler) GetMyProfile(c *fiber.Ctx) error {
-	// Get Firebase token from Authorization header
-	authHeader := c.Get("Authorization")
-	if authHeader == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
-			Message: "Authorization header is required",
-		})
-	}
+	idToken := c.Locals("idToken").(string)
 
-	// Extract token from "Bearer <token>" format
-	if len(authHeader) < 7 || authHeader[:7] != "Bearer " {
-		return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
-			Message: "Invalid authorization format. Use 'Bearer <token>'",
-		})
-	}
-	idToken := authHeader[7:]
-
-	// Create context with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Get user by Firebase token
 	user, err := h.userService.GetUserProfileByToken(ctx, idToken)
 	if err != nil {
 		if err.Error() == "user not found" {
@@ -189,7 +151,6 @@ func (h *UserHandler) GetMyProfile(c *fiber.Ctx) error {
 		})
 	}
 
-	// Convert to response format
 	profile := h.userService.ConvertToProfileResponse(user)
 	return c.Status(fiber.StatusOK).JSON(profile)
 }
@@ -207,27 +168,11 @@ func (h *UserHandler) GetMyProfile(c *fiber.Ctx) error {
 // @Failure 404 {object} model.ErrorResponse "User not found"
 // @Router /user/me/profile/details [get]
 func (h *UserHandler) GetMyProfileDetails(c *fiber.Ctx) error {
-	// Get Firebase token from Authorization header
-	authHeader := c.Get("Authorization")
-	if authHeader == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
-			Message: "Authorization header is required",
-		})
-	}
+	idToken := c.Locals("idToken").(string)
 
-	// Extract token from "Bearer <token>" format
-	if len(authHeader) < 7 || authHeader[:7] != "Bearer " {
-		return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
-			Message: "Invalid authorization format. Use 'Bearer <token>'",
-		})
-	}
-	idToken := authHeader[7:]
-
-	// Create context with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Get user by Firebase token
 	user, err := h.userService.GetUserProfileByToken(ctx, idToken)
 	if err != nil {
 		if err.Error() == "user not found" {
@@ -240,7 +185,6 @@ func (h *UserHandler) GetMyProfileDetails(c *fiber.Ctx) error {
 		})
 	}
 
-	// Convert to profile details response format
 	details := h.userService.ConvertToProfileDetailsResponse(user)
 	return c.Status(fiber.StatusOK).JSON(details)
 }
@@ -259,7 +203,6 @@ func (h *UserHandler) GetMyProfileDetails(c *fiber.Ctx) error {
 // @Failure 400 {object} model.ErrorResponse "Invalid query parameters"
 // @Router /user/search [get]
 func (h *UserHandler) SearchUsers(c *fiber.Ctx) error {
-	// Get search query
 	query := c.Query("q")
 	if query == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(model.ErrorResponse{
@@ -267,27 +210,11 @@ func (h *UserHandler) SearchUsers(c *fiber.Ctx) error {
 		})
 	}
 
-	// Get pagination parameters
-	page := 1
-	pageSize := 20
+	page, pageSize := utils.ClampPagination(c.QueryInt("page", 1), c.QueryInt("pageSize", 20), 50)
 
-	if pageStr := c.Query("page"); pageStr != "" {
-		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
-			page = p
-		}
-	}
-
-	if pageSizeStr := c.Query("pageSize"); pageSizeStr != "" {
-		if ps, err := strconv.Atoi(pageSizeStr); err == nil && ps > 0 {
-			pageSize = ps
-		}
-	}
-
-	// Create context with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Search users
 	response, err := h.userService.SearchUsers(ctx, query, page, pageSize)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(model.ErrorResponse{

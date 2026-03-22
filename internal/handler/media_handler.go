@@ -23,7 +23,7 @@ func NewMediaHandler(uploader *utils.CloudinaryUploader, userService *service.Us
 }
 
 type VerifyAvatarRequest struct {
-	PublicID string `json:"public_id"`
+	PublicID  string `json:"public_id"`
 	AvatarUrl string `json:"avatar_url"`
 }
 
@@ -36,66 +36,49 @@ type VerifyAvatarRequest struct {
 // @Param Authorization header string true "Bearer Firebase ID Token"
 // @Param request body VerifyAvatarRequest true "Avatar details"
 // @Success 200 {object} map[string]string
-// @Failure 400 {object} map[string]string
-// @Failure 401 {object} map[string]string
-// @Failure 500 {object} map[string]string
+// @Failure 400 {object} model.ErrorResponse
+// @Failure 401 {object} model.ErrorResponse
+// @Failure 500 {object} model.ErrorResponse
 // @Router /media/verify-avatar [post]
 func (h *MediaHandler) VerifyAvatar(c *fiber.Ctx) error {
-	// Get Firebase token from Authorization header
-	authHeader := c.Get("Authorization")
-	if authHeader == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "Authorization header is required",
-		})
-	}
-
-	if len(authHeader) < 7 || authHeader[:7] != "Bearer " {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "Invalid authorization format",
-		})
-	}
-	idToken := authHeader[7:]
+	idToken := c.Locals("idToken").(string)
 
 	var req VerifyAvatarRequest
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid request body",
+		return c.Status(fiber.StatusBadRequest).JSON(model.ErrorResponse{
+			Message: "Invalid request body",
 		})
 	}
 
 	if req.PublicID == "" || req.AvatarUrl == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "public_id and avatar_url are required",
+		return c.Status(fiber.StatusBadRequest).JSON(model.ErrorResponse{
+			Message: "public_id and avatar_url are required",
 		})
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Get user by token to get UserID
 	user, err := h.userService.GetUserProfileByToken(ctx, idToken)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "Invalid token or user not found",
+		return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
+			Message: "Invalid token or user not found",
 		})
 	}
 
-	// Update user profile with new avatar URL
 	updateReq := &model.ProfileUpdateRequest{
 		AvatarUrl: &req.AvatarUrl,
 	}
 
 	_, err = h.userService.UpdateUserProfile(ctx, user.ID.Hex(), updateReq)
 	if err != nil {
-		// Update failed, try to delete the image from Cloudinary
-		// We use a separate context for deletion to ensure it runs even if original context is cancelled/timed out
 		delCtx, delCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer delCancel()
-		
+
 		_ = h.uploader.DeleteImage(delCtx, req.PublicID)
-		
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to update profile",
+
+		return c.Status(fiber.StatusInternalServerError).JSON(model.ErrorResponse{
+			Message: "Failed to update profile",
 		})
 	}
 
@@ -119,20 +102,19 @@ type UploadSignatureRequest struct {
 // @Produce json
 // @Param request body UploadSignatureRequest true "Upload parameters"
 // @Success 200 {object} map[string]interface{}
-// @Failure 400 {object} map[string]string
+// @Failure 400 {object} model.ErrorResponse
 // @Router /media/sign [post]
 func (h *MediaHandler) GetUploadSignature(c *fiber.Ctx) error {
 	var req UploadSignatureRequest
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid request body",
+		return c.Status(fiber.StatusBadRequest).JSON(model.ErrorResponse{
+			Message: "Invalid request body",
 		})
 	}
 
-	// Construct strict parameters map
 	timestamp := time.Now().Unix()
 	params := map[string]interface{}{
-		"timestamp":     timestamp,
+		"timestamp": timestamp,
 	}
 
 	if req.Folder != "" {
@@ -145,8 +127,8 @@ func (h *MediaHandler) GetUploadSignature(c *fiber.Ctx) error {
 
 	signature, err := h.uploader.GenerateUploadSignature(params)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to generate signature",
+		return c.Status(fiber.StatusInternalServerError).JSON(model.ErrorResponse{
+			Message: "Failed to generate signature",
 		})
 	}
 
