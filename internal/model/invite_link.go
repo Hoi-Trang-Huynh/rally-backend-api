@@ -65,17 +65,18 @@ type InviteLinkPreviewOwner struct {
 
 // InviteLinkPreviewResponse represents the preview card data for an invitation
 type InviteLinkPreviewResponse struct {
-	RallyID       string                 `json:"rallyId" example:"507f1f77bcf86cd799439012"`
-	RallyName     string                 `json:"rallyName" example:"Summer Road Trip"`
-	Description   interface{}            `json:"description,omitempty"`
-	CoverImageUrl string                 `json:"coverImageUrl,omitempty" example:"https://example.com/cover.jpg"`
-	Status        RallyStatus            `json:"status" example:"active"`
-	StartDate     *time.Time             `json:"startDate,omitempty" example:"2025-07-01T00:00:00Z"`
-	EndDate       *time.Time             `json:"endDate,omitempty" example:"2025-07-15T00:00:00Z"`
-	Owner         InviteLinkPreviewOwner `json:"owner"`
-	RoleOffered   ParticipantRole        `json:"roleOffered" example:"participant"`
-	MemberCount   int64                  `json:"memberCount" example:"5"`
-	EventCount    int64                  `json:"eventCount" example:"3"`
-	ParticipantID string                 `json:"participantId" example:"507f1f77bcf86cd799439015"`
-	InvitedAt     time.Time              `json:"invitedAt" example:"2025-01-15T10:30:00Z"`
+	RallyID           string                 `json:"rallyId" example:"507f1f77bcf86cd799439012"`
+	RallyName         string                 `json:"rallyName" example:"Summer Road Trip"`
+	Description       interface{}            `json:"description,omitempty"`
+	CoverImageUrl     string                 `json:"coverImageUrl,omitempty" example:"https://example.com/cover.jpg"`
+	Status            RallyStatus            `json:"status" example:"active"`
+	StartDate         *time.Time             `json:"startDate,omitempty" example:"2025-07-01T00:00:00Z"`
+	EndDate           *time.Time             `json:"endDate,omitempty" example:"2025-07-15T00:00:00Z"`
+	Owner             InviteLinkPreviewOwner `json:"owner"`
+	RoleOffered       ParticipantRole        `json:"roleOffered" example:"participant"`
+	MemberCount       int64                  `json:"memberCount" example:"5"`
+	EventCount        int64                  `json:"eventCount" example:"3"`
+	ParticipantID     string                 `json:"participantId" example:"507f1f77bcf86cd799439015"`
+	ParticipantStatus string                 `json:"participantStatus" example:"invited"`
+	InvitedAt         time.Time              `json:"invitedAt" example:"2025-01-15T10:30:00Z"`
 } //@name InviteLinkPreviewResponse

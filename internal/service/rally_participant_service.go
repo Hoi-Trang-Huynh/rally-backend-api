@@ -179,6 +179,25 @@ func (s *RallyParticipantService) GetParticipantsList(ctx context.Context, rally
 	}, nil
 }
 
+// GetPendingInvitations retrieves all pending ("invited" status) invitations for the authenticated user.
+// TODO: This is a temporary endpoint until realtime notifications are implemented.
+func (s *RallyParticipantService) GetPendingInvitations(ctx context.Context, idToken string) (*model.PendingInvitationsResponse, error) {
+	user, err := authenticateUser(ctx, s.firebaseAuth, s.userRepo, idToken)
+	if err != nil {
+		return nil, err
+	}
+
+	items, err := s.participantRepo.GetPendingInvitations(ctx, user.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get pending invitations: %w", err)
+	}
+
+	return &model.PendingInvitationsResponse{
+		Invitations: items,
+		Total:       len(items),
+	}, nil
+}
+
 // GetInvitableFriends retrieves friends who can be invited to a rally (middleware ensures joined participant)
 func (s *RallyParticipantService) GetInvitableFriends(ctx context.Context, user *model.User, rallyID string, query string, page, pageSize int) (*model.FriendListResponse, error) {
 	rallyObjID, err := primitive.ObjectIDFromHex(rallyID)

@@ -91,3 +91,24 @@ type ParticipantListResponse struct {
 	TotalPages   int                              `json:"totalPages" example:"5"`
 	Pagination   PaginationMetadata               `json:"pagination"`
 } //@name ParticipantListResponse
+
+// PendingInvitationItem represents a single pending rally invitation for the current user
+type PendingInvitationItem struct {
+	ParticipantID string              `json:"participantId" example:"507f1f77bcf86cd799439011"`
+	RallyID       string              `json:"rallyId" example:"507f1f77bcf86cd799439012"`
+	RallyName     string              `json:"rallyName" example:"Summer Road Trip"`
+	Description   string              `json:"description,omitempty" example:"A fun road trip across the coast"`
+	CoverImageUrl string              `json:"coverImageUrl,omitempty" example:"https://example.com/cover.jpg"`
+	StartDate     *time.Time          `json:"startDate,omitempty" example:"2025-06-01T00:00:00Z"`
+	EndDate       *time.Time          `json:"endDate,omitempty" example:"2025-06-15T00:00:00Z"`
+	MemberCount   int                 `json:"memberCount" example:"12"`
+	Role          ParticipantRole     `json:"role" example:"participant"`
+	InvitedBy     *ParticipantUserInfo `json:"invitedBy,omitempty"`
+	InvitedAt     time.Time           `json:"invitedAt" example:"2025-01-15T10:30:00Z"`
+} //@name PendingInvitationItem
+
+// PendingInvitationsResponse represents the API response for pending invitations
+type PendingInvitationsResponse struct {
+	Invitations []PendingInvitationItem `json:"invitations"`
+	Total       int                     `json:"total" example:"3"`
+} //@name PendingInvitationsResponse

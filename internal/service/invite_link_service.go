@@ -181,7 +181,7 @@ func (s *InviteLinkService) PreviewInviteLink(ctx context.Context, idToken strin
 		return nil, fmt.Errorf("failed to check existing participation: %w", err)
 	}
 
-	// If they are not joined/invited, enforce expiration/max uses
+	// If they are not already joined/invited, enforce expiration/max uses
 	if existing == nil || (existing.Status != model.ParticipationStatusJoined && existing.Status != model.ParticipationStatusInvited) {
 		if isExpired {
 			return nil, errors.New("link is expired")
@@ -189,9 +189,8 @@ func (s *InviteLinkService) PreviewInviteLink(ctx context.Context, idToken strin
 		if isMaxedOut {
 			return nil, errors.New("link has reached its maximum uses")
 		}
-	} else if existing.Status == model.ParticipationStatusJoined {
-		return nil, errors.New("user is already a joined participant")
 	}
+	// Note: already-joined users can still preview (frontend will redirect them)
 
 	// Get owner info
 	owner, err := s.userRepo.GetUserByID(ctx, rally.OwnerID.Hex())
@@ -214,8 +213,10 @@ func (s *InviteLinkService) PreviewInviteLink(ctx context.Context, idToken strin
 	}
 
 	participantID := ""
+	participantStatus := ""
 	if existing != nil {
 		participantID = existing.ID.Hex()
+		participantStatus = string(existing.Status)
 	}
 
 	return &model.InviteLinkPreviewResponse{
@@ -232,15 +233,18 @@ func (s *InviteLinkService) PreviewInviteLink(ctx context.Context, idToken strin
 			LastName:  owner.LastName,
 			AvatarUrl: owner.AvatarUrl,
 		},
-		RoleOffered:   link.RoleToGrant,
-		MemberCount:   memberCount,
-		EventCount:    eventCount,
-		ParticipantID: participantID,
-		InvitedAt:     link.CreatedAt,
+		RoleOffered:       link.RoleToGrant,
+		MemberCount:       memberCount,
+		EventCount:        eventCount,
+		ParticipantID:     participantID,
+		ParticipantStatus: participantStatus,
+		InvitedAt:         link.CreatedAt,
 	}, nil
 }
 
-// JoinViaLink allows a user to join a rally using a valid invite link token
+// JoinViaLink allows a user to accept an invite link and join a rally directly.
+// This is called when the user taps "Accept" on the invite preview screen.
+// It creates or updates the participant record with "joined" status and increments link usage.
 func (s *InviteLinkService) JoinViaLink(ctx context.Context, idToken string, token string) (*model.JoinViaLinkResponse, error) {
 	user, err := authenticateUser(ctx, s.firebaseAuth, s.userRepo, idToken)
 	if err != nil {
@@ -258,7 +262,6 @@ func (s *InviteLinkService) JoinViaLink(ctx context.Context, idToken string, tok
 
 	// Validate Expiration
 	if link.ExpiresAt != nil && time.Now().After(*link.ExpiresAt) {
-		// Attempt to deactivate it since it's expired
 		_ = s.inviteLinkRepo.DeactivateInviteLink(ctx, token)
 		return nil, errors.New("invite link has expired")
 	}
@@ -275,9 +278,12 @@ func (s *InviteLinkService) JoinViaLink(ctx context.Context, idToken string, tok
 		return nil, fmt.Errorf("failed to check existing participant status: %w", err)
 	}
 
+	now := time.Now()
+	joinedStatus := model.ParticipationStatusJoined
+
 	if existing != nil {
 		if existing.Status == model.ParticipationStatusJoined {
-			// Already joined, let it succeed but state so
+			// Already joined — no-op, no usage increment
 			return &model.JoinViaLinkResponse{
 				Success: true,
 				Message: "You are already a participant of this rally",
@@ -287,84 +293,81 @@ func (s *InviteLinkService) JoinViaLink(ctx context.Context, idToken string, tok
 			}, nil
 		}
 
+		// Determine the role to apply
+		var finalRole model.ParticipantRole
 		if existing.Status == model.ParticipationStatusInvited {
-			// They are already invited. Upgrade role if the link offers a better one.
-			newRole := existing.Role
-			isUpgrade := false
-			// Owner cannot be granted via link (guarded in creation), but just in case
-			if link.RoleToGrant == model.ParticipantRoleEditor && existing.Role == model.ParticipantRoleParticipant {
-				newRole = link.RoleToGrant
-				isUpgrade = true
-			} else if link.RoleToGrant == model.ParticipantRoleOwner {
-				newRole = link.RoleToGrant
-				isUpgrade = true
-			}
-
-			if isUpgrade {
-				updates := &model.UpdateParticipantRequest{Role: &newRole}
-				if _, err := s.participantRepo.UpdateParticipant(ctx, existing.ID.Hex(), updates); err != nil {
-					return nil, fmt.Errorf("failed to update existing invitation role: %w", err)
-				}
-			}
-
-			// Increment uses unconditionally since they consumed this link
-			if err := s.inviteLinkRepo.IncrementLinkUsage(ctx, token); err != nil {
-				return nil, fmt.Errorf("failed to process invite link usage: %w", err)
-			}
-
-			return &model.JoinViaLinkResponse{
-				Success: true,
-				Message: "You have successfully received an invitation to this rally. Please confirm to join.",
-				RallyID: link.RallyID.Hex(),
-				Role:    string(newRole),
-				Status:  string(model.ParticipationStatusInvited),
-			}, nil
+			// Take the higher of existing invite role vs link role
+			finalRole = higherRole(existing.Role, link.RoleToGrant)
+		} else {
+			// Declined or left — fresh start, use the link's role
+			finalRole = link.RoleToGrant
 		}
 
-		// Update existing participant status to Invited (if they had Left or Declined previously)
-		status := model.ParticipationStatusInvited
+		// Update to joined with the resolved role
 		updates := &model.UpdateParticipantRequest{
-			Status: &status,
-			Role:   &link.RoleToGrant, // Inherit role from the link
+			Status: &joinedStatus,
+			Role:   &finalRole,
+		}
+		if _, err := s.participantRepo.UpdateParticipant(ctx, existing.ID.Hex(), updates); err != nil {
+			return nil, fmt.Errorf("failed to join rally: %w", err)
 		}
 
-		_, err := s.participantRepo.UpdateParticipant(ctx, existing.ID.Hex(), updates)
-		if err != nil {
-			return nil, fmt.Errorf("failed to process invite: %w", err)
-		}
-
-		// Increment uses now since user status successfully changed to invited from left/declined
+		// Increment link usage on successful join
 		if err := s.inviteLinkRepo.IncrementLinkUsage(ctx, token); err != nil {
 			return nil, fmt.Errorf("failed to process invite link usage: %w", err)
 		}
-	} else {
-		// Make a new participant record with INVITED status
-		participant := &model.RallyParticipant{
-			ID:        primitive.NewObjectID(),
-			RallyID:   link.RallyID,
-			UserID:    user.ID,
-			Role:      link.RoleToGrant,
-			Status:    model.ParticipationStatusInvited,
-			InvitedBy: &link.CreatedBy,
-		}
 
-		if err := s.participantRepo.CreateParticipant(ctx, participant); err != nil {
-			return nil, fmt.Errorf("failed to process invite: %w", err)
-		}
+		return &model.JoinViaLinkResponse{
+			Success: true,
+			Message: "Successfully joined the rally",
+			RallyID: link.RallyID.Hex(),
+			Role:    string(finalRole),
+			Status:  string(model.ParticipationStatusJoined),
+		}, nil
+	}
 
-		// Increment uses now since new user was successfully invited
-		if err := s.inviteLinkRepo.IncrementLinkUsage(ctx, token); err != nil {
-			return nil, fmt.Errorf("failed to process invite link usage: %w", err)
-		}
+	// No existing record — create new participant with "joined" status
+	participant := &model.RallyParticipant{
+		ID:        primitive.NewObjectID(),
+		RallyID:   link.RallyID,
+		UserID:    user.ID,
+		Role:      link.RoleToGrant,
+		Status:    model.ParticipationStatusJoined,
+		InvitedBy: &link.CreatedBy,
+		JoinedAt:  &now,
+		InvitedAt: now,
+	}
+
+	if err := s.participantRepo.CreateParticipant(ctx, participant); err != nil {
+		return nil, fmt.Errorf("failed to join rally: %w", err)
+	}
+
+	// Increment link usage on successful join
+	if err := s.inviteLinkRepo.IncrementLinkUsage(ctx, token); err != nil {
+		return nil, fmt.Errorf("failed to process invite link usage: %w", err)
 	}
 
 	return &model.JoinViaLinkResponse{
 		Success: true,
-		Message: "Successfully received invitation. Please confirm to join.",
+		Message: "Successfully joined the rally",
 		RallyID: link.RallyID.Hex(),
 		Role:    string(link.RoleToGrant),
-		Status:  string(model.ParticipationStatusInvited),
+		Status:  string(model.ParticipationStatusJoined),
 	}, nil
+}
+
+// higherRole returns the more privileged of two roles.
+// Precedence: owner > editor > participant.
+func higherRole(a, b model.ParticipantRole) model.ParticipantRole {
+	rank := map[model.ParticipantRole]int{
+		model.ParticipantRoleParticipant: 0,
+		model.ParticipantRoleEditor:      1,
+		model.ParticipantRoleOwner:       2,
+	}
+	if rank[b] > rank[a] {
+		return b
+	}
+	return a
 }
 
 func convertToInviteLinkResponse(link *model.InviteLink) *model.InviteLinkResponse {

@@ -108,6 +108,7 @@ func SetupWithDeps(
 	users := v1.Group("/user")
 	users.Get("/me/profile", auth, userHandler.GetMyProfile)
 	users.Get("/me/profile/details", auth, userHandler.GetMyProfileDetails)
+	users.Get("/me/invitations", auth, participantHandler.GetPendingInvitations) // TODO: temporary until realtime notifications
 	users.Get("/search", userHandler.SearchUsers)
 	users.Get("/:id/profile", followHandler.GetUserPublicProfile)
 	users.Put("/:id/profile", auth, userHandler.UpdateProfile)

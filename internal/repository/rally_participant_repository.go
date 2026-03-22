@@ -18,6 +18,7 @@ type RallyParticipantRepository interface {
 	UpdateParticipant(ctx context.Context, participantID string, updates *model.UpdateParticipantRequest) (*model.RallyParticipant, error)
 	GetParticipantsList(ctx context.Context, rallyID primitive.ObjectID, role string, page, pageSize int) ([]model.RallyParticipantDetailResponse, int64, error)
 	CountJoinedParticipants(ctx context.Context, rallyID primitive.ObjectID) (int64, error)
+	GetPendingInvitations(ctx context.Context, userID primitive.ObjectID) ([]model.PendingInvitationItem, error)
 }
 
 type rallyParticipantRepository struct {
@@ -244,4 +245,132 @@ func (r *rallyParticipantRepository) CountJoinedParticipants(ctx context.Context
 		"rally_id": rallyID,
 		"status":   string(model.ParticipationStatusJoined),
 	})
+}
+
+// GetPendingInvitations retrieves all "invited" participant records for a user, enriched with rally and inviter info.
+func (r *rallyParticipantRepository) GetPendingInvitations(ctx context.Context, userID primitive.ObjectID) ([]model.PendingInvitationItem, error) {
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: bson.M{
+			"user_id": userID,
+			"status":  string(model.ParticipationStatusInvited),
+		}}},
+		// Join rally info
+		{{Key: "$lookup", Value: bson.M{
+			"from":         "rallies",
+			"localField":   "rally_id",
+			"foreignField": "_id",
+			"as":           "rally_info",
+		}}},
+		{{Key: "$unwind", Value: bson.M{
+			"path":                       "$rally_info",
+			"preserveNullAndEmptyArrays": true,
+		}}},
+		// Join inviter user info
+		{{Key: "$lookup", Value: bson.M{
+			"from":         "users",
+			"localField":   "invited_by",
+			"foreignField": "_id",
+			"as":           "inviter_info",
+		}}},
+		{{Key: "$unwind", Value: bson.M{
+			"path":                       "$inviter_info",
+			"preserveNullAndEmptyArrays": true,
+		}}},
+		// Count joined participants per rally
+		{{Key: "$lookup", Value: bson.M{
+			"from": "rally_participants",
+			"let":  bson.M{"rid": "$rally_id"},
+			"pipeline": mongo.Pipeline{
+				{{Key: "$match", Value: bson.M{
+					"$expr": bson.M{"$eq": bson.A{"$rally_id", "$$rid"}},
+					"status": string(model.ParticipationStatusJoined),
+				}}},
+				{{Key: "$count", Value: "count"}},
+			},
+			"as": "member_count_info",
+		}}},
+		{{Key: "$unwind", Value: bson.M{
+			"path":                       "$member_count_info",
+			"preserveNullAndEmptyArrays": true,
+		}}},
+		{{Key: "$sort", Value: bson.D{{Key: "invited_at", Value: -1}}}},
+	}
+
+	cursor, err := r.collection.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	type rallyInfoBson struct {
+		ID            primitive.ObjectID `bson:"_id"`
+		Name          string             `bson:"name"`
+		Description   string             `bson:"description"`
+		CoverImageUrl string             `bson:"cover_image_url"`
+		StartDate     *time.Time         `bson:"start_date"`
+		EndDate       *time.Time         `bson:"end_date"`
+	}
+
+	type inviterInfoBson struct {
+		ID        primitive.ObjectID `bson:"_id"`
+		Username  string             `bson:"username"`
+		FirstName string             `bson:"first_name"`
+		LastName  string             `bson:"last_name"`
+		AvatarUrl string             `bson:"avatar_url"`
+	}
+
+	type memberCountBson struct {
+		Count int `bson:"count"`
+	}
+
+	type rawResult struct {
+		ID              primitive.ObjectID    `bson:"_id"`
+		RallyID         primitive.ObjectID    `bson:"rally_id"`
+		Role            model.ParticipantRole `bson:"role"`
+		InvitedAt       time.Time             `bson:"invited_at"`
+		RallyInfo       *rallyInfoBson        `bson:"rally_info"`
+		InviterInfo     *inviterInfoBson      `bson:"inviter_info"`
+		MemberCountInfo *memberCountBson      `bson:"member_count_info"`
+	}
+
+	var results []rawResult
+	if err = cursor.All(ctx, &results); err != nil {
+		return nil, err
+	}
+
+	items := make([]model.PendingInvitationItem, 0, len(results))
+	for _, raw := range results {
+		item := model.PendingInvitationItem{
+			ParticipantID: raw.ID.Hex(),
+			RallyID:       raw.RallyID.Hex(),
+			Role:          raw.Role,
+			InvitedAt:     raw.InvitedAt,
+		}
+
+		if raw.RallyInfo != nil {
+			item.RallyName = raw.RallyInfo.Name
+			item.Description = raw.RallyInfo.Description
+			item.CoverImageUrl = raw.RallyInfo.CoverImageUrl
+			item.StartDate = raw.RallyInfo.StartDate
+			item.EndDate = raw.RallyInfo.EndDate
+		}
+
+		if raw.MemberCountInfo != nil {
+			item.MemberCount = raw.MemberCountInfo.Count
+		}
+
+		if raw.InviterInfo != nil && !raw.InviterInfo.ID.IsZero() {
+			item.InvitedBy = &model.ParticipantUserInfo{
+				ID:        raw.InviterInfo.ID.Hex(),
+				Username:  raw.InviterInfo.Username,
+				FirstName: raw.InviterInfo.FirstName,
+				LastName:  raw.InviterInfo.LastName,
+				AvatarUrl: raw.InviterInfo.AvatarUrl,
+			}
+		}
+
+		items = append(items, item)
+	}
+
+	return items, nil
 }

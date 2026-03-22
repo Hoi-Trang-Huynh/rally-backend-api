@@ -153,8 +153,8 @@ func (h *InviteLinkHandler) DeactivateInviteLink(c *fiber.Ctx) error {
 }
 
 // JoinViaLink godoc
-// @Summary Join a rally via invite link
-// @Description Uses a token from a QR code / invite link to join a rally.
+// @Summary Accept an invite link and join a rally
+// @Description Accepts a QR code / invite link token and immediately joins the rally with "joined" status. Takes the higher role when an existing in-app invitation exists.
 // @Tags Invite Links
 // @ID joinViaLink
 // @Accept json
@@ -245,7 +245,7 @@ func (h *InviteLinkHandler) PreviewInviteLink(c *fiber.Ctx) error {
 			return c.Status(fiber.StatusNotFound).JSON(model.ErrorResponse{
 				Message: err.Error(),
 			})
-		case "link is expired", "link has reached its maximum uses", "user is already a joined participant":
+		case "link is expired", "link has reached its maximum uses":
 			return c.Status(fiber.StatusBadRequest).JSON(model.ErrorResponse{
 				Message: err.Error(),
 			})

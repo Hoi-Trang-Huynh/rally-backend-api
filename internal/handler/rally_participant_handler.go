@@ -137,6 +137,39 @@ func (h *RallyParticipantHandler) UpdateParticipant(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(response)
 }
 
+// GetPendingInvitations godoc
+// @Summary Get pending rally invitations for the current user
+// @Description Retrieves all rally invitations with "invited" status for the authenticated user, enriched with rally and inviter info. Temporary endpoint until realtime notifications are implemented.
+// @Tags Rally Participants
+// @ID getPendingInvitations
+// @Produce json
+// @Param Authorization header string true "Bearer Firebase ID Token"
+// @Success 200 {object} model.PendingInvitationsResponse
+// @Failure 401 {object} model.ErrorResponse "Unauthorized"
+// @Router /user/me/invitations [get]
+func (h *RallyParticipantHandler) GetPendingInvitations(c *fiber.Ctx) error {
+	idToken := c.Locals("idToken").(string)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	response, err := h.participantService.GetPendingInvitations(ctx, idToken)
+	if err != nil {
+		switch err.Error() {
+		case "invalid or expired token", "user not found":
+			return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
+				Message: err.Error(),
+			})
+		default:
+			return c.Status(fiber.StatusInternalServerError).JSON(model.ErrorResponse{
+				Message: "Failed to get pending invitations",
+			})
+		}
+	}
+
+	return c.Status(fiber.StatusOK).JSON(response)
+}
+
 // GetParticipantsList godoc
 // @Summary Get participants of a rally
 // @Description Get a paginated list of participants in a rally. Requires user to be a joined participant.
