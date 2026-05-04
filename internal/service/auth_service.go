@@ -66,7 +66,7 @@ func (s *AuthService) Login(ctx context.Context, idToken string) (*model.User, e
 	// Verify Firebase token
 	token, err := s.firebaseAuth.VerifyIDToken(ctx, idToken)
 	if err != nil {
-		return nil, fmt.Errorf("invalid or expired token: %w", err)
+		return nil, errors.New("invalid or expired Firebase token")
 	}
 
 	// Fetch user from DB
