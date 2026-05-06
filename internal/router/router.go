@@ -29,6 +29,7 @@ func Setup(cfg *config.Config) *fiber.App {
 	activityRepo := repository.NewActivityRepository(db)
 	participantRepo := repository.NewRallyParticipantRepository(db)
 	inviteLinkRepo := repository.NewInviteLinkRepository(db)
+	savedPlaceRepo := repository.NewSavedPlaceRepository(db)
 
 	fbApp := firebase.GetClient()
 
@@ -37,7 +38,7 @@ func Setup(cfg *config.Config) *fiber.App {
 		panic(err)
 	}
 
-	app, err := SetupWithDeps(userRepo, followRepo, feedbackRepo, rallyRepo, eventRepo, activityRepo, participantRepo, inviteLinkRepo, fbApp, cld)
+	app, err := SetupWithDeps(userRepo, followRepo, feedbackRepo, rallyRepo, eventRepo, activityRepo, participantRepo, inviteLinkRepo, savedPlaceRepo, fbApp, cld, cfg.Google.PlacesAPIKey)
 	if err != nil {
 		panic(err)
 	}
@@ -54,8 +55,10 @@ func SetupWithDeps(
 	activityRepo repository.ActivityRepository,
 	participantRepo repository.RallyParticipantRepository,
 	inviteLinkRepo repository.InviteLinkRepository,
+	savedPlaceRepo repository.SavedPlaceRepository,
 	fbApp *fb.App,
 	cld *utils.CloudinaryUploader,
+	googlePlacesAPIKey string,
 ) (*fiber.App, error) {
 
 	// Create Firebase auth client once and share across all services
@@ -78,6 +81,8 @@ func SetupWithDeps(
 	activityService := service.NewActivityService(firebaseAuth, activityRepo, eventRepo, participantRepo, userRepo)
 	participantService := service.NewRallyParticipantService(firebaseAuth, participantRepo, rallyRepo, userRepo, followRepo)
 	inviteLinkService := service.NewInviteLinkService(firebaseAuth, inviteLinkRepo, participantRepo, rallyRepo, userRepo, eventRepo)
+	placesService := service.NewPlacesService(googlePlacesAPIKey)
+	savedPlacesService := service.NewSavedPlacesService(savedPlaceRepo, placesService)
 
 	authHandler := handler.NewAuthHandler(authService)
 	userHandler := handler.NewUserHandler(userService)
@@ -89,8 +94,18 @@ func SetupWithDeps(
 	activityHandler := handler.NewActivityHandler(activityService)
 	participantHandler := handler.NewRallyParticipantHandler(participantService)
 	inviteLinkHandler := handler.NewInviteLinkHandler(inviteLinkService)
+	placesHandler := handler.NewPlacesHandler(placesService)
+	savedPlacesHandler := handler.NewSavedPlacesHandler(savedPlacesService)
 
 	auth := middleware.AuthRequired()
+
+	app.Get("/", func(c *fiber.Ctx) error {
+		return c.Redirect("/swagger/index.html", fiber.StatusMovedPermanently)
+	})
+	app.Get("/robots.txt", func(c *fiber.Ctx) error {
+		c.Set(fiber.HeaderContentType, "text/plain")
+		return c.SendString("User-agent: *\nDisallow: /\n")
+	})
 
 	app.Get("/swagger/*", fiberSwagger.WrapHandler)
 
@@ -159,6 +174,17 @@ func SetupWithDeps(
 	// Activity routes (auth + resolved user, rally access checked in service via activity lookup)
 	activities := v1.Group("/activities", auth, resolveUser)
 	activities.Put("/:id", activityHandler.UpdateActivity)
+
+	// Places routes — auth only (protects the API key; no user resolution needed)
+	places := v1.Group("/places", auth)
+	places.Get("/nearby", placesHandler.NearbySearch)
+	places.Get("/:placeId", placesHandler.GetPlaceDetails)
+
+	// Saved places routes — auth + resolved user (user-scoped bookmarks)
+	savedPlaces := v1.Group("/saved-places", auth, resolveUser)
+	savedPlaces.Get("/", savedPlacesHandler.GetSavedPlaces)
+	savedPlaces.Post("/", savedPlacesHandler.SavePlace)
+	savedPlaces.Delete("/:placeId", savedPlacesHandler.RemovePlace)
 
 	return app, nil
 }

@@ -11,6 +11,7 @@ type Config struct {
 	Database   DatabaseConfig
 	Firebase   FirebaseConfig
 	Cloudinary CloudinaryConfig
+	Google     GoogleConfig
 }
 
 type ServerConfig struct {
@@ -30,6 +31,10 @@ type FirebaseConfig struct {
 
 type CloudinaryConfig struct {
 	URL string
+}
+
+type GoogleConfig struct {
+	PlacesAPIKey string
 }
 
 // Load loads configuration from .env file and environment variables
@@ -59,6 +64,9 @@ func Load() *Config {
 		},
 		Cloudinary: CloudinaryConfig{
 			URL: getEnv("CLOUDINARY_URL", ""),
+		},
+		Google: GoogleConfig{
+			PlacesAPIKey: getEnv("GOOGLE_PLACES_API_KEY", ""),
 		},
 	}
 
