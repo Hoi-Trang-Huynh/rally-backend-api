@@ -178,6 +178,7 @@ func SetupWithDeps(
 	// Places routes — auth only (protects the API key; no user resolution needed)
 	places := v1.Group("/places", auth)
 	places.Get("/nearby", placesHandler.NearbySearch)
+	places.Get("/search", placesHandler.TextSearch)
 	places.Get("/:placeId", placesHandler.GetPlaceDetails)
 
 	// Saved places routes — auth + resolved user (user-scoped bookmarks)
