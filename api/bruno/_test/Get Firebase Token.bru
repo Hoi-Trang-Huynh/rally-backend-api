@@ -1,0 +1,25 @@
+meta {
+  name: Get Firebase Token
+  type: http
+  seq: 1
+}
+
+post {
+  url: https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={{firebaseApiKey}}
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "email": "{{email}}",
+    "password": "{{password}}",
+    "returnSecureToken": true
+  }
+}
+
+script:post-response {
+  if (res.status === 200) {
+    bru.setEnvVar("idToken", res.body.idToken);
+  }
+}

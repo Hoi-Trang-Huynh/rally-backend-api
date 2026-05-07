@@ -59,3 +59,11 @@ build.log
 
 #Firebase
 serviceAccountKey.json
+
+# Bruno generated environment (contains credentials filled in from .env)
+api/bruno/**
+!api/bruno/environments/
+!api/bruno/environments/**
+!api/bruno/_test/
+!api/bruno/_test/**
+!api/bruno/inject_env.py
