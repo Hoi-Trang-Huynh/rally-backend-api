@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -16,11 +17,13 @@ import (
 )
 
 const (
-	placesBaseURL = "https://maps.googleapis.com/maps/api/place"
-	photoBaseURL  = "https://maps.googleapis.com/maps/api/place/photo"
+	placesBaseURL = "https://places.googleapis.com/v1"
 
 	// usePlaceholder toggles static placeholder data instead of calling the Google Places API.
 	usePlaceholder = false
+
+	nearbyFieldMask  = "places.id,places.displayName,places.location,places.rating,places.userRatingCount,places.priceLevel,places.shortFormattedAddress,places.photos,places.currentOpeningHours,places.types"
+	detailsFieldMask = "id,displayName,location,rating,userRatingCount,priceLevel,formattedAddress,photos,currentOpeningHours,types,editorialSummary"
 )
 
 type PlacesService struct {
@@ -35,7 +38,7 @@ func NewPlacesService(apiKey string) *PlacesService {
 	}
 }
 
-// NearbySearch proxies Google Places Nearby Search and returns up to maxCount results.
+// NearbySearch proxies Google Places Nearby Search (New) and returns up to maxCount results.
 func (s *PlacesService) NearbySearch(ctx context.Context, lat, lng float64, placeType string, maxCount int) ([]model.PlaceResult, error) {
 	if usePlaceholder {
 		var results []model.PlaceResult
@@ -50,18 +53,27 @@ func (s *PlacesService) NearbySearch(ctx context.Context, lat, lng float64, plac
 		return results, nil
 	}
 
-	params := url.Values{}
-	params.Set("location", fmt.Sprintf("%f,%f", lat, lng))
-	params.Set("radius", "5000")
-	params.Set("type", placeType)
-	params.Set("key", s.apiKey)
+	body, _ := json.Marshal(map[string]any{
+		"includedTypes":   []string{placeType},
+		"maxResultCount":  maxCount,
+		"locationRestriction": map[string]any{
+			"circle": map[string]any{
+				"center": map[string]any{
+					"latitude":  lat,
+					"longitude": lng,
+				},
+				"radius": 5000.0,
+			},
+		},
+	})
 
-	reqURL := fmt.Sprintf("%s/nearbysearch/json?%s", placesBaseURL, params.Encode())
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, placesBaseURL+"/places:searchNearby", bytes.NewReader(body))
 	if err != nil {
 		return nil, err
 	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Goog-Api-Key", s.apiKey)
+	req.Header.Set("X-Goog-FieldMask", nearbyFieldMask)
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
@@ -69,65 +81,34 @@ func (s *PlacesService) NearbySearch(ctx context.Context, lat, lng float64, plac
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode != http.StatusOK {
+		var errResp struct {
+			Error struct {
+				Code    int    `json:"code"`
+				Message string `json:"message"`
+				Status  string `json:"status"`
+			} `json:"error"`
+		}
+		_ = json.NewDecoder(resp.Body).Decode(&errResp)
+		log.Printf("[places] NearbySearch: HTTP %d — %s", resp.StatusCode, errResp.Error.Message)
+		return []model.PlaceResult{}, nil
+	}
+
 	var apiResp struct {
-		Status  string              `json:"status"`
-		Results []nearbyPlaceResult `json:"results"`
+		Places []newPlaceResult `json:"places"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&apiResp); err != nil {
 		return nil, err
 	}
-	if apiResp.Status == "REQUEST_DENIED" || apiResp.Status == "OVER_QUERY_LIMIT" {
-		log.Printf("[places] NearbySearch: Google Places API returned %s — billing may be disabled or quota exceeded", apiResp.Status)
-		return []model.PlaceResult{}, nil
-	}
-	if apiResp.Status != "OK" && apiResp.Status != "ZERO_RESULTS" {
-		return nil, fmt.Errorf("places API error: %s", apiResp.Status)
-	}
 
-	results := make([]model.PlaceResult, 0, min(len(apiResp.Results), maxCount))
-	for i, r := range apiResp.Results {
-		if i >= maxCount {
-			break
-		}
-		place := model.PlaceResult{
-			ID:      r.PlaceID,
-			Name:    r.Name,
-			Lat:     r.Geometry.Location.Lat,
-			Lng:     r.Geometry.Location.Lng,
-			Address: r.Vicinity,
-			Type:    placeType,
-		}
-		if r.Rating > 0 {
-			v := r.Rating
-			place.Rating = &v
-		}
-		if r.UserRatingsTotal > 0 {
-			v := r.UserRatingsTotal
-			place.ReviewCount = &v
-		}
-		if r.PriceLevel > 0 {
-			place.PriceLevel = priceLevelStr(r.PriceLevel)
-		}
-		if len(r.Photos) > 0 {
-			place.ImageUrl = buildPhotoURL(r.Photos[0].PhotoReference, s.apiKey)
-		}
-		if r.OpeningHours != nil {
-			v := r.OpeningHours.OpenNow
-			place.OpenNow = &v
-			if v {
-				place.Hours = "Open now"
-			} else {
-				place.Hours = "Closed"
-			}
-		}
-		place.Distance = formatDistance(haversineKm(lat, lng, r.Geometry.Location.Lat, r.Geometry.Location.Lng))
-		results = append(results, place)
+	results := make([]model.PlaceResult, 0, len(apiResp.Places))
+	for _, r := range apiResp.Places {
+		results = append(results, s.convertPlace(r, placeType, lat, lng))
 	}
-
 	return results, nil
 }
 
-// GetPlaceDetails proxies Google Places Details and returns a single PlaceResult.
+// GetPlaceDetails proxies Google Places Details (New) and returns a single PlaceResult.
 func (s *PlacesService) GetPlaceDetails(ctx context.Context, placeID string) (*model.PlaceResult, error) {
 	if usePlaceholder {
 		for _, p := range placeholderPlaces {
@@ -139,17 +120,13 @@ func (s *PlacesService) GetPlaceDetails(ctx context.Context, placeID string) (*m
 		return nil, errors.New("place not found")
 	}
 
-	params := url.Values{}
-	params.Set("place_id", placeID)
-	params.Set("fields", "place_id,name,photos,rating,user_ratings_total,price_level,formatted_address,opening_hours,geometry,editorial_summary,types")
-	params.Set("key", s.apiKey)
-
-	reqURL := fmt.Sprintf("%s/details/json?%s", placesBaseURL, params.Encode())
-
+	reqURL := fmt.Sprintf("%s/places/%s", placesBaseURL, url.PathEscape(placeID))
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
 		return nil, err
 	}
+	req.Header.Set("X-Goog-Api-Key", s.apiKey)
+	req.Header.Set("X-Goog-FieldMask", detailsFieldMask)
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
@@ -157,60 +134,32 @@ func (s *PlacesService) GetPlaceDetails(ctx context.Context, placeID string) (*m
 	}
 	defer resp.Body.Close()
 
-	var apiResp struct {
-		Status string            `json:"status"`
-		Result placeDetailResult `json:"result"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&apiResp); err != nil {
-		return nil, err
-	}
-	if apiResp.Status == "NOT_FOUND" || apiResp.Status == "INVALID_REQUEST" {
+	if resp.StatusCode == http.StatusNotFound {
 		return nil, errors.New("place not found")
 	}
-	if apiResp.Status != "OK" {
-		return nil, fmt.Errorf("places API error: %s", apiResp.Status)
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("places API error: HTTP %d", resp.StatusCode)
 	}
 
-	r := apiResp.Result
-	place := &model.PlaceResult{
-		ID:      r.PlaceID,
-		Name:    r.Name,
-		Lat:     r.Geometry.Location.Lat,
-		Lng:     r.Geometry.Location.Lng,
-		Address: r.FormattedAddress,
+	var r newPlaceResult
+	if err := json.NewDecoder(resp.Body).Decode(&r); err != nil {
+		return nil, err
 	}
-	if r.Rating > 0 {
-		v := r.Rating
-		place.Rating = &v
-	}
-	if r.UserRatingsTotal > 0 {
-		v := r.UserRatingsTotal
-		place.ReviewCount = &v
-	}
-	if r.PriceLevel > 0 {
-		place.PriceLevel = priceLevelStr(r.PriceLevel)
-	}
-	if len(r.Photos) > 0 {
-		place.ImageUrl = buildPhotoURL(r.Photos[0].PhotoReference, s.apiKey)
-	}
+
+	place := s.convertPlace(r, "", 0, 0)
 	if r.EditorialSummary != nil {
-		place.Description = r.EditorialSummary.Overview
+		place.Description = r.EditorialSummary.Text
 	}
-	if r.OpeningHours != nil {
-		v := r.OpeningHours.OpenNow
-		place.OpenNow = &v
-		if len(r.OpeningHours.WeekdayText) > 0 {
-			place.Hours = todayHours(r.OpeningHours.WeekdayText)
-		}
+	if r.FormattedAddress != "" {
+		place.Address = r.FormattedAddress
 	}
-	if len(r.Types) > 0 {
-		place.Type = r.Types[0]
+	if len(r.CurrentOpeningHours.WeekdayDescriptions) > 0 {
+		place.Hours = todayHours(r.CurrentOpeningHours.WeekdayDescriptions)
 	}
-
-	return place, nil
+	return &place, nil
 }
 
-// TextSearch proxies Google Places Text Search and returns up to maxCount results.
+// TextSearch proxies Google Places Text Search (New) and returns up to maxCount results.
 func (s *PlacesService) TextSearch(ctx context.Context, query string, lat, lng float64, maxCount int) ([]model.PlaceResult, error) {
 	if usePlaceholder {
 		q := strings.ToLower(query)
@@ -228,18 +177,27 @@ func (s *PlacesService) TextSearch(ctx context.Context, query string, lat, lng f
 		return results, nil
 	}
 
-	params := url.Values{}
-	params.Set("query", query)
-	params.Set("location", fmt.Sprintf("%f,%f", lat, lng))
-	params.Set("radius", "5000")
-	params.Set("key", s.apiKey)
+	body, _ := json.Marshal(map[string]any{
+		"textQuery":      query,
+		"maxResultCount": maxCount,
+		"locationBias": map[string]any{
+			"circle": map[string]any{
+				"center": map[string]any{
+					"latitude":  lat,
+					"longitude": lng,
+				},
+				"radius": 5000.0,
+			},
+		},
+	})
 
-	reqURL := fmt.Sprintf("%s/textsearch/json?%s", placesBaseURL, params.Encode())
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, placesBaseURL+"/places:searchText", bytes.NewReader(body))
 	if err != nil {
 		return nil, err
 	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Goog-Api-Key", s.apiKey)
+	req.Header.Set("X-Goog-FieldMask", nearbyFieldMask)
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
@@ -247,154 +205,138 @@ func (s *PlacesService) TextSearch(ctx context.Context, query string, lat, lng f
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode != http.StatusOK {
+		var errResp struct {
+			Error struct {
+				Code    int    `json:"code"`
+				Message string `json:"message"`
+				Status  string `json:"status"`
+			} `json:"error"`
+		}
+		_ = json.NewDecoder(resp.Body).Decode(&errResp)
+		log.Printf("[places] TextSearch: HTTP %d — %s", resp.StatusCode, errResp.Error.Message)
+		return []model.PlaceResult{}, nil
+	}
+
 	var apiResp struct {
-		Status  string              `json:"status"`
-		Results []nearbyPlaceResult `json:"results"`
+		Places []newPlaceResult `json:"places"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&apiResp); err != nil {
 		return nil, err
 	}
-	if apiResp.Status == "REQUEST_DENIED" || apiResp.Status == "OVER_QUERY_LIMIT" {
-		log.Printf("[places] TextSearch: Google Places API returned %s", apiResp.Status)
-		return []model.PlaceResult{}, nil
-	}
-	if apiResp.Status != "OK" && apiResp.Status != "ZERO_RESULTS" {
-		return nil, fmt.Errorf("places API error: %s", apiResp.Status)
-	}
 
-	results := make([]model.PlaceResult, 0, min(len(apiResp.Results), maxCount))
-	for i, r := range apiResp.Results {
-		if i >= maxCount {
-			break
-		}
-		addr := r.FormattedAddress
-		if addr == "" {
-			addr = r.Vicinity
-		}
-		placeType := ""
-		if len(r.Types) > 0 {
-			placeType = r.Types[0]
-		}
-		place := model.PlaceResult{
-			ID:      r.PlaceID,
-			Name:    r.Name,
-			Lat:     r.Geometry.Location.Lat,
-			Lng:     r.Geometry.Location.Lng,
-			Address: addr,
-			Type:    placeType,
-		}
-		if r.Rating > 0 {
-			v := r.Rating
-			place.Rating = &v
-		}
-		if r.UserRatingsTotal > 0 {
-			v := r.UserRatingsTotal
-			place.ReviewCount = &v
-		}
-		if r.PriceLevel > 0 {
-			place.PriceLevel = priceLevelStr(r.PriceLevel)
-		}
-		if len(r.Photos) > 0 {
-			place.ImageUrl = buildPhotoURL(r.Photos[0].PhotoReference, s.apiKey)
-		}
-		if r.OpeningHours != nil {
-			v := r.OpeningHours.OpenNow
-			place.OpenNow = &v
-			if v {
-				place.Hours = "Open now"
-			} else {
-				place.Hours = "Closed"
-			}
-		}
-		place.Distance = formatDistance(haversineKm(lat, lng, r.Geometry.Location.Lat, r.Geometry.Location.Lng))
-		results = append(results, place)
+	results := make([]model.PlaceResult, 0, len(apiResp.Places))
+	for _, r := range apiResp.Places {
+		results = append(results, s.convertPlace(r, "", lat, lng))
 	}
-
 	return results, nil
 }
 
-// ── Internal Google API structs ───────────────────────────────────────────────
+// ── Internal Google Places API (New) structs ──────────────────────────────────
 
-type nearbyPlaceResult struct {
-	PlaceID  string `json:"place_id"`
-	Name     string `json:"name"`
-	Geometry struct {
-		Location struct {
-			Lat float64 `json:"lat"`
-			Lng float64 `json:"lng"`
-		} `json:"location"`
-	} `json:"geometry"`
-	Photos []struct {
-		PhotoReference string `json:"photo_reference"`
+type newPlaceResult struct {
+	ID          string `json:"id"`
+	DisplayName struct {
+		Text string `json:"text"`
+	} `json:"displayName"`
+	Location struct {
+		Latitude  float64 `json:"latitude"`
+		Longitude float64 `json:"longitude"`
+	} `json:"location"`
+	Rating                float64  `json:"rating"`
+	UserRatingCount       int      `json:"userRatingCount"`
+	PriceLevel            string   `json:"priceLevel"`
+	ShortFormattedAddress string   `json:"shortFormattedAddress"`
+	FormattedAddress      string   `json:"formattedAddress"`
+	Types                 []string `json:"types"`
+	Photos                []struct {
+		Name string `json:"name"`
 	} `json:"photos"`
-	Rating           float64  `json:"rating"`
-	UserRatingsTotal int      `json:"user_ratings_total"`
-	PriceLevel       int      `json:"price_level"`
-	Vicinity         string   `json:"vicinity"`
-	FormattedAddress string   `json:"formatted_address"`
-	Types            []string `json:"types"`
-	OpeningHours     *struct {
-		OpenNow bool `json:"open_now"`
-	} `json:"opening_hours"`
-}
-
-type placeDetailResult struct {
-	PlaceID  string `json:"place_id"`
-	Name     string `json:"name"`
-	Geometry struct {
-		Location struct {
-			Lat float64 `json:"lat"`
-			Lng float64 `json:"lng"`
-		} `json:"location"`
-	} `json:"geometry"`
-	Photos []struct {
-		PhotoReference string `json:"photo_reference"`
-	} `json:"photos"`
-	Rating           float64  `json:"rating"`
-	UserRatingsTotal int      `json:"user_ratings_total"`
-	PriceLevel       int      `json:"price_level"`
-	FormattedAddress string   `json:"formatted_address"`
-	OpeningHours     *struct {
-		OpenNow     bool     `json:"open_now"`
-		WeekdayText []string `json:"weekday_text"`
-	} `json:"opening_hours"`
+	CurrentOpeningHours struct {
+		OpenNow             bool     `json:"openNow"`
+		WeekdayDescriptions []string `json:"weekdayDescriptions"`
+	} `json:"currentOpeningHours"`
 	EditorialSummary *struct {
-		Overview string `json:"overview"`
-	} `json:"editorial_summary"`
-	Types []string `json:"types"`
+		Text string `json:"text"`
+	} `json:"editorialSummary"`
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-func buildPhotoURL(ref, apiKey string) string {
-	return fmt.Sprintf("%s?maxwidth=800&photo_reference=%s&key=%s", photoBaseURL, url.QueryEscape(ref), apiKey)
+func (s *PlacesService) convertPlace(r newPlaceResult, placeType string, originLat, originLng float64) model.PlaceResult {
+	addr := r.ShortFormattedAddress
+	if addr == "" {
+		addr = r.FormattedAddress
+	}
+	pType := placeType
+	if pType == "" && len(r.Types) > 0 {
+		pType = r.Types[0]
+	}
+
+	place := model.PlaceResult{
+		ID:      r.ID,
+		Name:    r.DisplayName.Text,
+		Lat:     r.Location.Latitude,
+		Lng:     r.Location.Longitude,
+		Address: addr,
+		Type:    pType,
+	}
+	if r.Rating > 0 {
+		v := r.Rating
+		place.Rating = &v
+	}
+	if r.UserRatingCount > 0 {
+		v := r.UserRatingCount
+		place.ReviewCount = &v
+	}
+	place.PriceLevel = newPriceLevelStr(r.PriceLevel)
+	if len(r.Photos) > 0 {
+		place.ImageUrl = buildPhotoURL(r.Photos[0].Name, s.apiKey)
+	}
+	if r.CurrentOpeningHours.OpenNow || len(r.CurrentOpeningHours.WeekdayDescriptions) > 0 {
+		v := r.CurrentOpeningHours.OpenNow
+		place.OpenNow = &v
+		if v {
+			place.Hours = "Open now"
+		} else {
+			place.Hours = "Closed"
+		}
+	}
+	if originLat != 0 || originLng != 0 {
+		place.Distance = formatDistance(haversineKm(originLat, originLng, r.Location.Latitude, r.Location.Longitude))
+	}
+	return place
 }
 
-func priceLevelStr(level int) string {
+func buildPhotoURL(photoName, apiKey string) string {
+	return fmt.Sprintf("%s/%s/media?maxWidthPx=800&key=%s", placesBaseURL, photoName, apiKey)
+}
+
+func newPriceLevelStr(level string) string {
 	switch level {
-	case 1:
+	case "PRICE_LEVEL_FREE":
+		return ""
+	case "PRICE_LEVEL_INEXPENSIVE":
 		return "$"
-	case 2:
+	case "PRICE_LEVEL_MODERATE":
 		return "$$"
-	case 3:
+	case "PRICE_LEVEL_EXPENSIVE":
 		return "$$$"
-	case 4:
+	case "PRICE_LEVEL_VERY_EXPENSIVE":
 		return "$$$$"
 	default:
 		return ""
 	}
 }
 
-// todayHours extracts the current weekday's hours string from weekday_text.
-// weekday_text is Monday-indexed: [Mon, Tue, Wed, Thu, Fri, Sat, Sun].
+// todayHours extracts the current weekday's hours string from weekdayDescriptions.
+// weekdayDescriptions is Monday-indexed: [Mon, Tue, Wed, Thu, Fri, Sat, Sun].
 func todayHours(weekdayText []string) string {
-	// time.Weekday: 0=Sunday … 6=Saturday; convert to Monday-indexed (0=Mon … 6=Sun)
 	idx := (int(time.Now().Weekday()) + 6) % 7
 	if idx >= len(weekdayText) {
 		return ""
 	}
 	text := weekdayText[idx]
-	// strip "Monday: " prefix → "9:00 AM – 5:00 PM"
 	if i := strings.Index(text, ": "); i != -1 {
 		return text[i+2:]
 	}
@@ -418,13 +360,6 @@ func formatDistance(km float64) string {
 		return fmt.Sprintf("%.0f m", km*1000)
 	}
 	return fmt.Sprintf("%.1f km", km)
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
 
 func floatPtr(v float64) *float64 { return &v }
