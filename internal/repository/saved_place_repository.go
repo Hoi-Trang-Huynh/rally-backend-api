@@ -14,6 +14,7 @@ import (
 // SavedPlaceRepository defines the persistence contract for saved places.
 type SavedPlaceRepository interface {
 	GetSavedPlaces(ctx context.Context, userID primitive.ObjectID) ([]model.PlaceResult, error)
+	GetSavedPlacesMap(ctx context.Context, userID primitive.ObjectID) (map[string]model.PlaceResult, error)
 	SavePlace(ctx context.Context, userID primitive.ObjectID, place model.PlaceResult) error
 	RemovePlace(ctx context.Context, userID primitive.ObjectID, placeID string) error
 }
@@ -51,6 +52,19 @@ func (r *savedPlaceRepository) GetSavedPlaces(ctx context.Context, userID primit
 		places[i] = d.PlaceData
 	}
 	return places, nil
+}
+
+// GetSavedPlacesMap returns a map of placeID → PlaceResult for all saved places of the user.
+func (r *savedPlaceRepository) GetSavedPlacesMap(ctx context.Context, userID primitive.ObjectID) (map[string]model.PlaceResult, error) {
+	places, err := r.GetSavedPlaces(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	m := make(map[string]model.PlaceResult, len(places))
+	for _, p := range places {
+		m[p.ID] = p
+	}
+	return m, nil
 }
 
 // SavePlace upserts a place snapshot for the user.

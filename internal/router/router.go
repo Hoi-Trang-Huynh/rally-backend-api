@@ -30,6 +30,7 @@ func Setup(cfg *config.Config) *fiber.App {
 	participantRepo := repository.NewRallyParticipantRepository(db)
 	inviteLinkRepo := repository.NewInviteLinkRepository(db)
 	savedPlaceRepo := repository.NewSavedPlaceRepository(db)
+	collectionRepo := repository.NewCollectionRepository(db)
 
 	fbApp := firebase.GetClient()
 
@@ -38,7 +39,7 @@ func Setup(cfg *config.Config) *fiber.App {
 		panic(err)
 	}
 
-	app, err := SetupWithDeps(userRepo, followRepo, feedbackRepo, rallyRepo, eventRepo, activityRepo, participantRepo, inviteLinkRepo, savedPlaceRepo, fbApp, cld, cfg.Google.PlacesAPIKey)
+	app, err := SetupWithDeps(userRepo, followRepo, feedbackRepo, rallyRepo, eventRepo, activityRepo, participantRepo, inviteLinkRepo, savedPlaceRepo, collectionRepo, fbApp, cld, cfg.Google.PlacesAPIKey)
 	if err != nil {
 		panic(err)
 	}
@@ -56,6 +57,7 @@ func SetupWithDeps(
 	participantRepo repository.RallyParticipantRepository,
 	inviteLinkRepo repository.InviteLinkRepository,
 	savedPlaceRepo repository.SavedPlaceRepository,
+	collectionRepo repository.CollectionRepository,
 	fbApp *fb.App,
 	cld *utils.CloudinaryUploader,
 	googlePlacesAPIKey string,
@@ -83,6 +85,7 @@ func SetupWithDeps(
 	inviteLinkService := service.NewInviteLinkService(firebaseAuth, inviteLinkRepo, participantRepo, rallyRepo, userRepo, eventRepo)
 	placesService := service.NewPlacesService(googlePlacesAPIKey)
 	savedPlacesService := service.NewSavedPlacesService(savedPlaceRepo, placesService)
+	collectionService := service.NewCollectionService(collectionRepo, savedPlaceRepo)
 
 	authHandler := handler.NewAuthHandler(authService)
 	userHandler := handler.NewUserHandler(userService)
@@ -96,6 +99,7 @@ func SetupWithDeps(
 	inviteLinkHandler := handler.NewInviteLinkHandler(inviteLinkService)
 	placesHandler := handler.NewPlacesHandler(placesService)
 	savedPlacesHandler := handler.NewSavedPlacesHandler(savedPlacesService)
+	collectionHandler := handler.NewCollectionHandler(collectionService)
 
 	auth := middleware.AuthRequired()
 
@@ -186,6 +190,15 @@ func SetupWithDeps(
 	savedPlaces.Get("/", savedPlacesHandler.GetSavedPlaces)
 	savedPlaces.Post("/", savedPlacesHandler.SavePlace)
 	savedPlaces.Delete("/:placeId", savedPlacesHandler.RemovePlace)
+
+	// Collections routes — auth + resolved user (user-curated place lists)
+	collections := v1.Group("/collections", auth, resolveUser)
+	collections.Get("/", collectionHandler.GetCollections)
+	collections.Post("/", collectionHandler.CreateCollection)
+	collections.Delete("/:id", collectionHandler.DeleteCollection)
+	collections.Get("/:id/places", collectionHandler.GetCollectionPlaces)
+	collections.Post("/:id/places", collectionHandler.AddPlaceToCollection)
+	collections.Delete("/:id/places/:placeId", collectionHandler.RemovePlaceFromCollection)
 
 	return app, nil
 }

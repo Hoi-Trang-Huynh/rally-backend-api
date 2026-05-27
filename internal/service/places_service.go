@@ -23,7 +23,7 @@ const (
 	usePlaceholder = false
 
 	nearbyFieldMask  = "places.id,places.displayName,places.location,places.rating,places.userRatingCount,places.priceLevel,places.shortFormattedAddress,places.photos,places.currentOpeningHours,places.types"
-	detailsFieldMask = "id,displayName,location,rating,userRatingCount,priceLevel,formattedAddress,photos,currentOpeningHours,types,editorialSummary"
+	detailsFieldMask = "id,displayName,location,rating,userRatingCount,priceLevel,formattedAddress,photos,currentOpeningHours,types,editorialSummary,internationalPhoneNumber,websiteUri,reviews"
 )
 
 type PlacesService struct {
@@ -154,7 +154,27 @@ func (s *PlacesService) GetPlaceDetails(ctx context.Context, placeID string) (*m
 		place.Address = r.FormattedAddress
 	}
 	if len(r.CurrentOpeningHours.WeekdayDescriptions) > 0 {
+		place.WeekdayHours = r.CurrentOpeningHours.WeekdayDescriptions
 		place.Hours = todayHours(r.CurrentOpeningHours.WeekdayDescriptions)
+	}
+	place.Phone = r.InternationalPhoneNumber
+	place.Website = r.WebsiteUri
+	if len(r.Reviews) > 0 {
+		reviews := make([]model.PlaceReview, 0, len(r.Reviews))
+		for _, rv := range r.Reviews {
+			text := ""
+			if rv.Text != nil {
+				text = rv.Text.Text
+			}
+			reviews = append(reviews, model.PlaceReview{
+				AuthorName:  rv.AuthorAttribution.DisplayName,
+				AuthorPhoto: rv.AuthorAttribution.PhotoUri,
+				Rating:      rv.Rating,
+				TimeAgo:     rv.RelativePublishTimeDescription,
+				Text:        text,
+			})
+		}
+		place.Reviews = reviews
 	}
 	return &place, nil
 }
@@ -259,6 +279,19 @@ type newPlaceResult struct {
 	EditorialSummary *struct {
 		Text string `json:"text"`
 	} `json:"editorialSummary"`
+	InternationalPhoneNumber string `json:"internationalPhoneNumber"`
+	WebsiteUri               string `json:"websiteUri"`
+	Reviews                  []struct {
+		RelativePublishTimeDescription string `json:"relativePublishTimeDescription"`
+		Rating                         int    `json:"rating"`
+		Text                           *struct {
+			Text string `json:"text"`
+		} `json:"text"`
+		AuthorAttribution struct {
+			DisplayName string `json:"displayName"`
+			PhotoUri    string `json:"photoUri"`
+		} `json:"authorAttribution"`
+	} `json:"reviews"`
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -292,6 +325,11 @@ func (s *PlacesService) convertPlace(r newPlaceResult, placeType string, originL
 	place.PriceLevel = newPriceLevelStr(r.PriceLevel)
 	if len(r.Photos) > 0 {
 		place.ImageUrl = buildPhotoURL(r.Photos[0].Name, s.apiKey)
+		photos := make([]string, 0, len(r.Photos))
+		for _, p := range r.Photos {
+			photos = append(photos, buildPhotoURL(p.Name, s.apiKey))
+		}
+		place.Photos = photos
 	}
 	if r.CurrentOpeningHours.OpenNow || len(r.CurrentOpeningHours.WeekdayDescriptions) > 0 {
 		v := r.CurrentOpeningHours.OpenNow
@@ -315,7 +353,7 @@ func buildPhotoURL(photoName, apiKey string) string {
 func newPriceLevelStr(level string) string {
 	switch level {
 	case "PRICE_LEVEL_FREE":
-		return ""
+		return "Free"
 	case "PRICE_LEVEL_INEXPENSIVE":
 		return "$"
 	case "PRICE_LEVEL_MODERATE":
