@@ -32,8 +32,18 @@ Stores in `c.Locals`: `"idToken"` -> `"user"` -> `"rallyParticipant"`. Event/act
 - Two MongoDB databases on one client: `rally_db` (main) and `rally_dashboard` (feedback only), initialized as singletons in `internal/infrastructure/database/database.go`
 - JSON: camelCase, BSON: snake_case. IDs are ObjectID hex strings in responses.
 - Partial updates use pointer fields — nil means "don't update"
-- CI deploys to GCP Cloud Run on `v*` tags
 - Required env: `MONGODB_URI`, `MONGODB_DB`, `FIREBASE_CREDENTIALS_PATH`, `CLOUDINARY_URL`
+
+## Versioning & Releases
+
+Full guide: [`VERSIONING.md`](../VERSIONING.md). Quick rules:
+
+- **Production** = push a `v*` git tag **created on `master`** → builds & deploys to Cloud Run prod (`ENV=production`). The tag string becomes the binary version (`internal/version`).
+- **Staging** = push to the **`staging`** branch → deploys to Cloud Run staging (version `dev`).
+- The workflow ([`.github/workflows/cicd.yml`](../.github/workflows/cicd.yml)) has **no branch guard** on tags — only ever tag commits that are on `master`, or you'll ship un-reviewed code to prod.
+- **SemVer `vMAJOR.MINOR.PATCH`**: bump **`z`** (patch) for bug fixes / small changes, **`y`** (minor) for bigger changes / new features (reset patch to 0), **`x`** (major) for breaking changes.
+- **Bump the version before opening a PR** — if you don't, a PR check will remind you in the comments.
+- Tags are immutable: never move or re-push an existing tag, cut a new one.
 
 ## Coding Style & Conventions
 
