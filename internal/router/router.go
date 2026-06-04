@@ -78,7 +78,7 @@ func SetupWithDeps(
 	userService := service.NewUserService(firebaseAuth, userRepo)
 	followService := service.NewFollowService(firebaseAuth, followRepo, userRepo)
 	feedbackService := service.NewFeedbackService(feedbackRepo)
-	rallyService := service.NewRallyService(database.GetDB(), firebaseAuth, rallyRepo, participantRepo, userRepo)
+	rallyService := service.NewRallyService(database.GetDB(), firebaseAuth, rallyRepo, participantRepo, userRepo, savedPlaceRepo)
 	eventService := service.NewEventService(firebaseAuth, eventRepo, rallyRepo, participantRepo, userRepo)
 	activityService := service.NewActivityService(firebaseAuth, activityRepo, eventRepo, participantRepo, userRepo)
 	participantService := service.NewRallyParticipantService(firebaseAuth, participantRepo, rallyRepo, userRepo, followRepo)
@@ -169,6 +169,9 @@ func SetupWithDeps(
 	rallies.Post("/:id/invite-links", loadParticipant, joined, ownerOrEditor, inviteLinkHandler.CreateInviteLink)              // Owner/Editor + joined (extra owner check for elevated roles in service)
 	rallies.Get("/:id/invite-links", loadParticipant, joined, ownerOrEditor, inviteLinkHandler.GetActiveInviteLinks)           // Owner/Editor + joined
 	rallies.Delete("/:id/invite-links/:token", loadParticipant, joined, ownerOrEditor, inviteLinkHandler.DeactivateInviteLink) // Owner/Editor + joined
+	rallies.Get("/:id/places", rallyHandler.GetRallyPlaces)                                                                    // Any authed user
+	rallies.Post("/:id/places", rallyHandler.AddPlaceToRally)                                                                   // Any authed user
+	rallies.Delete("/:id/places/:placeId", rallyHandler.RemovePlaceFromRally)                                                   // Any authed user
 
 	// Event routes (auth + resolved user, rally access checked in service via event lookup)
 	events := v1.Group("/events", auth, resolveUser)

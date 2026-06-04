@@ -16,6 +16,8 @@ type RallyRepository interface {
 	GetRallyByID(ctx context.Context, rallyID string) (*model.Rally, error)
 	UpdateRally(ctx context.Context, rallyID string, updates *model.UpdateRallyRequest) (*model.Rally, error)
 	GetRalliesList(ctx context.Context, userID primitive.ObjectID, nameFilter string, statusFilter string, sortOrder string, page int, pageSize int) ([]model.Rally, int, error)
+	AddPlace(ctx context.Context, rallyID string, placeID string) error
+	RemovePlace(ctx context.Context, rallyID string, placeID string) error
 }
 
 type rallyRepository struct {
@@ -199,4 +201,36 @@ func (r *rallyRepository) GetRalliesList(ctx context.Context, userID primitive.O
 	}
 
 	return results[0].Data, total, nil
+}
+
+func (r *rallyRepository) AddPlace(ctx context.Context, rallyID string, placeID string) error {
+	objectID, err := primitive.ObjectIDFromHex(rallyID)
+	if err != nil {
+		return err
+	}
+	_, err = r.collection.UpdateOne(
+		ctx,
+		bson.M{"_id": objectID},
+		bson.M{
+			"$addToSet": bson.M{"place_ids": placeID},
+			"$set":      bson.M{"updated_at": time.Now()},
+		},
+	)
+	return err
+}
+
+func (r *rallyRepository) RemovePlace(ctx context.Context, rallyID string, placeID string) error {
+	objectID, err := primitive.ObjectIDFromHex(rallyID)
+	if err != nil {
+		return err
+	}
+	_, err = r.collection.UpdateOne(
+		ctx,
+		bson.M{"_id": objectID},
+		bson.M{
+			"$pull": bson.M{"place_ids": placeID},
+			"$set":  bson.M{"updated_at": time.Now()},
+		},
+	)
+	return err
 }

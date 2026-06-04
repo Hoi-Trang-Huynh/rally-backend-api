@@ -19,6 +19,7 @@ type RallyService struct {
 	rallyRepo       repository.RallyRepository
 	participantRepo repository.RallyParticipantRepository
 	userRepo        repository.UserRepository
+	savedPlaceRepo  repository.SavedPlaceRepository
 }
 
 func NewRallyService(
@@ -27,6 +28,7 @@ func NewRallyService(
 	rallyRepo repository.RallyRepository,
 	participantRepo repository.RallyParticipantRepository,
 	userRepo repository.UserRepository,
+	savedPlaceRepo repository.SavedPlaceRepository,
 ) *RallyService {
 	return &RallyService{
 		db:              db,
@@ -34,6 +36,7 @@ func NewRallyService(
 		rallyRepo:       rallyRepo,
 		participantRepo: participantRepo,
 		userRepo:        userRepo,
+		savedPlaceRepo:  savedPlaceRepo,
 	}
 }
 
@@ -185,13 +188,19 @@ func (s *RallyService) GetRalliesList(ctx context.Context, idToken string, userI
 	// Convert to list items
 	rallyItems := make([]model.RallyListItem, len(rallies))
 	for i, rally := range rallies {
+		placeIDs := rally.PlaceIDs
+		if placeIDs == nil {
+			placeIDs = []string{}
+		}
 		rallyItems[i] = model.RallyListItem{
-			ID:        rally.ID.Hex(),
-			Name:      rally.Name,
-			Status:    rally.Status,
-			StartDate: rally.StartDate,
-			EndDate:   rally.EndDate,
-			UpdatedAt: rally.UpdatedAt,
+			ID:            rally.ID.Hex(),
+			Name:          rally.Name,
+			Status:        rally.Status,
+			PlaceIDs:      placeIDs,
+			CoverImageUrl: rally.CoverImageUrl,
+			StartDate:     rally.StartDate,
+			EndDate:       rally.EndDate,
+			UpdatedAt:     rally.UpdatedAt,
 		}
 	}
 
@@ -235,6 +244,60 @@ func (s *RallyService) GetRally(ctx context.Context, participant *model.RallyPar
 		CurrentUserRole:   participant.Role,
 		CurrentUserStatus: participant.Status,
 	}, nil
+}
+
+// AddPlaceToRally adds a place to a rally's place list.
+func (s *RallyService) AddPlaceToRally(ctx context.Context, idToken string, rallyID string, placeID string) error {
+	if _, err := s.firebaseAuth.VerifyIDToken(ctx, idToken); err != nil {
+		return errors.New("invalid or expired token")
+	}
+	return s.rallyRepo.AddPlace(ctx, rallyID, placeID)
+}
+
+// RemovePlaceFromRally removes a place from a rally's place list.
+func (s *RallyService) RemovePlaceFromRally(ctx context.Context, idToken string, rallyID string, placeID string) error {
+	if _, err := s.firebaseAuth.VerifyIDToken(ctx, idToken); err != nil {
+		return errors.New("invalid or expired token")
+	}
+	return s.rallyRepo.RemovePlace(ctx, rallyID, placeID)
+}
+
+// GetRallyPlaces returns full place details for all places saved in a rally.
+func (s *RallyService) GetRallyPlaces(ctx context.Context, idToken string, rallyID string) ([]model.PlaceResult, error) {
+	token, err := s.firebaseAuth.VerifyIDToken(ctx, idToken)
+	if err != nil {
+		return nil, errors.New("invalid or expired token")
+	}
+	userID, err := primitive.ObjectIDFromHex(token.UID)
+	if err != nil {
+		// UID is a Firebase UID string, not a MongoDB ObjectID — look up the user
+		user, lookupErr := s.userRepo.GetUserByFirebaseUID(ctx, token.UID)
+		if lookupErr != nil || user == nil {
+			return nil, errors.New("user not found")
+		}
+		userID = user.ID
+	}
+	rally, err := s.rallyRepo.GetRallyByID(ctx, rallyID)
+	if err != nil {
+		return nil, err
+	}
+	if rally == nil {
+		return nil, errors.New("rally not found")
+	}
+	if len(rally.PlaceIDs) == 0 {
+		return []model.PlaceResult{}, nil
+	}
+	savedMap, err := s.savedPlaceRepo.GetSavedPlacesMap(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	places := make([]model.PlaceResult, 0, len(rally.PlaceIDs))
+	for _, pid := range rally.PlaceIDs {
+		if place, ok := savedMap[pid]; ok {
+			places = append(places, place)
+		}
+	}
+	return places, nil
 }
 
 // ConvertToRallyResponse converts a Rally model to RallyResponse

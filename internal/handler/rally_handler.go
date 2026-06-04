@@ -225,3 +225,64 @@ func (h *RallyHandler) GetRally(c *fiber.Ctx) error {
 
 	return c.Status(fiber.StatusOK).JSON(response)
 }
+
+// AddPlaceToRally adds a place to a rally's place list.
+func (h *RallyHandler) AddPlaceToRally(c *fiber.Ctx) error {
+	idToken := c.Locals("idToken").(string)
+	rallyID := c.Params("id")
+	if rallyID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(model.ErrorResponse{Message: "rally ID is required"})
+	}
+	var req model.AddPlaceToRallyRequest
+	if err := c.BodyParser(&req); err != nil || req.PlaceID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(model.ErrorResponse{Message: "placeId is required"})
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := h.rallyService.AddPlaceToRally(ctx, idToken, rallyID, req.PlaceID); err != nil {
+		if err.Error() == "invalid or expired token" {
+			return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{Message: err.Error()})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(model.ErrorResponse{Message: "failed to add place"})
+	}
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "place added"})
+}
+
+// RemovePlaceFromRally removes a place from a rally's place list.
+func (h *RallyHandler) RemovePlaceFromRally(c *fiber.Ctx) error {
+	idToken := c.Locals("idToken").(string)
+	rallyID := c.Params("id")
+	placeID := c.Params("placeId")
+	if rallyID == "" || placeID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(model.ErrorResponse{Message: "rally ID and place ID are required"})
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := h.rallyService.RemovePlaceFromRally(ctx, idToken, rallyID, placeID); err != nil {
+		if err.Error() == "invalid or expired token" {
+			return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{Message: err.Error()})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(model.ErrorResponse{Message: "failed to remove place"})
+	}
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "place removed"})
+}
+
+// GetRallyPlaces returns full place details saved to a rally.
+func (h *RallyHandler) GetRallyPlaces(c *fiber.Ctx) error {
+	idToken := c.Locals("idToken").(string)
+	rallyID := c.Params("id")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	places, err := h.rallyService.GetRallyPlaces(ctx, idToken, rallyID)
+	if err != nil {
+		switch err.Error() {
+		case "invalid or expired token":
+			return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{Message: err.Error()})
+		case "rally not found":
+			return c.Status(fiber.StatusNotFound).JSON(model.ErrorResponse{Message: err.Error()})
+		default:
+			return c.Status(fiber.StatusInternalServerError).JSON(model.ErrorResponse{Message: "failed to get places"})
+		}
+	}
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{"places": places})
+}

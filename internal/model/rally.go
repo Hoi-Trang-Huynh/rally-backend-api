@@ -25,10 +25,16 @@ type Rally struct {
 	Description   interface{}        `json:"description" bson:"description"`
 	CoverImageUrl string             `json:"coverImageUrl" bson:"cover_image_url"`
 	Status        RallyStatus        `json:"status" bson:"status"`
+	PlaceIDs      []string           `json:"placeIds" bson:"place_ids"`
 	StartDate     *time.Time         `json:"startDate" bson:"start_date"`
 	EndDate       *time.Time         `json:"endDate" bson:"end_date"`
 	CreatedAt     time.Time          `json:"createdAt" bson:"created_at"`
 	UpdatedAt     time.Time          `json:"updatedAt" bson:"updated_at"`
+}
+
+// AddPlaceToRallyRequest is the body for POST /rallies/:id/places.
+type AddPlaceToRallyRequest struct {
+	PlaceID string `json:"placeId"`
 }
 
 // CreateRallyRequest represents the request payload for creating a rally
@@ -74,12 +80,14 @@ type RallyJoinResponse struct {
 
 // RallyListItem represents a simplified rally item for list views
 type RallyListItem struct {
-	ID        string      `json:"id" example:"507f1f77bcf86cd799439011"`
-	Name      string      `json:"name" example:"Summer Road Trip"`
-	Status    RallyStatus `json:"status" example:"active"`
-	StartDate *time.Time  `json:"startDate,omitempty" example:"2025-07-01T00:00:00Z"`
-	EndDate   *time.Time  `json:"endDate,omitempty" example:"2025-07-15T00:00:00Z"`
-	UpdatedAt time.Time   `json:"updatedAt" example:"2025-01-15T10:30:00Z"`
+	ID           string      `json:"id" example:"507f1f77bcf86cd799439011"`
+	Name         string      `json:"name" example:"Summer Road Trip"`
+	Status       RallyStatus `json:"status" example:"active"`
+	PlaceIDs     []string    `json:"placeIds"`
+	CoverImageUrl string     `json:"coverImageUrl,omitempty"`
+	StartDate    *time.Time  `json:"startDate,omitempty" example:"2025-07-01T00:00:00Z"`
+	EndDate      *time.Time  `json:"endDate,omitempty" example:"2025-07-15T00:00:00Z"`
+	UpdatedAt    time.Time   `json:"updatedAt" example:"2025-01-15T10:30:00Z"`
 } //@name RallyListItem
 
 // RalliesListResponse represents the API response for rallies list
