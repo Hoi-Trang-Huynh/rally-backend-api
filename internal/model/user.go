@@ -25,17 +25,28 @@ type User struct {
 	FollowingCount  int                `json:"followingCount" bson:"following_count"`
 }
 
-// ProfileUpdateRequest represents the request payload for updating user profile
+// FirebaseUserInfo carries the identity claims of a verified Firebase ID
+// token. It is the only input for just-in-time user provisioning, so identity
+// fields can never be spoofed by request payloads.
+type FirebaseUserInfo struct {
+	UID           string
+	Email         string
+	EmailVerified bool
+	DisplayName   string
+	PictureURL    string
+}
+
+// ProfileUpdateRequest represents the request payload for updating user profile.
+// Identity/trust fields (email, isEmailVerified, isActive) are intentionally
+// absent: they are derived from the verified Firebase token, never from the client.
 type ProfileUpdateRequest struct {
-	Username        *string `json:"username,omitempty"`
-	FirstName       *string `json:"firstName,omitempty"`
-	LastName        *string `json:"lastName,omitempty"`
-	AvatarUrl       *string `json:"avatarUrl,omitempty"`
-	BioText         *string `json:"bioText,omitempty"`
-	PhoneNumber     *string `json:"phoneNumber,omitempty"`
-	IsActive        *bool   `json:"isActive,omitempty"`
-	IsEmailVerified *bool   `json:"isEmailVerified,omitempty"`
-	IsOnboarding    *bool   `json:"isOnboarding,omitempty"`
+	Username     *string `json:"username,omitempty"`
+	FirstName    *string `json:"firstName,omitempty"`
+	LastName     *string `json:"lastName,omitempty"`
+	AvatarUrl    *string `json:"avatarUrl,omitempty"`
+	BioText      *string `json:"bioText,omitempty"`
+	PhoneNumber  *string `json:"phoneNumber,omitempty"`
+	IsOnboarding *bool   `json:"isOnboarding,omitempty"`
 } //@name ProfileUpdateRequest
 
 // ProfileResponse represents the user profile response (for syncing)

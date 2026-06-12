@@ -5,14 +5,12 @@ import (
 	"errors"
 	"fmt"
 
-	"firebase.google.com/go/v4/auth"
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/model"
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/repository"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type EventService struct {
-	firebaseAuth    *auth.Client
 	eventRepo       repository.EventRepository
 	rallyRepo       repository.RallyRepository
 	participantRepo repository.RallyParticipantRepository
@@ -20,14 +18,12 @@ type EventService struct {
 }
 
 func NewEventService(
-	firebaseAuth *auth.Client,
 	eventRepo repository.EventRepository,
 	rallyRepo repository.RallyRepository,
 	participantRepo repository.RallyParticipantRepository,
 	userRepo repository.UserRepository,
 ) *EventService {
 	return &EventService{
-		firebaseAuth:    firebaseAuth,
 		eventRepo:       eventRepo,
 		rallyRepo:       rallyRepo,
 		participantRepo: participantRepo,

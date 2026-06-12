@@ -16,23 +16,28 @@ GoFiber REST API with **handler -> service -> repository** layers. All code in `
 - **DI wiring & routes**: `internal/router/router.go` — single place to add routes or wire dependencies
 - **Models**: each file bundles MongoDB struct + request DTOs + response DTOs (e.g. `rally.go`)
 - **Repositories**: interface + unexported impl in same file; return `nil, nil` for not-found
-- **Services**: business logic; take `*auth.Client` + repo interfaces; shared `authenticateUser()` in `helpers.go`
+- **Services**: business logic; take repo interfaces and the resolved `*model.User` — never raw tokens (verification happens once, in middleware)
 - **Handlers**: parse request, `context.WithTimeout(10s)`, call service, map errors via `switch err.Error()`
 
-## Rally Middleware Chain
+## Auth Middleware Chain
 
 ```
 auth -> resolveUser -> loadParticipant -> requireJoined -> requireRole
 ```
 
-Stores in `c.Locals`: `"idToken"` -> `"user"` -> `"rallyParticipant"`. Event/activity routes skip this chain and validate access in their service layer via `validateRallyAccess()`.
+- `auth` (`AuthRequired`) verifies the Firebase ID token from the Authorization header — the ONLY place tokens are verified — and stores the verified `*auth.Token` in `c.Locals("authToken")`.
+- `resolveUser` (`ResolveFirebaseUser`) JIT-provisions/loads the MongoDB user from the verified claims (syncing `email`/`email_verified` from the token, which is their source of truth) and stores `*model.User` in `c.Locals("user")`.
+- `POST /auth/register` is an idempotent register-or-login: middleware provisions the user; the optional body only carries initial profile fields. Identity/trust fields (`email`, `isEmailVerified`, `isActive`) are never accepted from clients.
+- Unique indexes on `firebase_uid` and non-empty `username` (created at startup via `repository.EnsureUserIndexes`) make provisioning and username selection race-free.
+
+Event/activity routes skip the rally part of this chain and validate access in their service layer via `validateRallyAccess()`.
 
 ## Key Details
 
 - Two MongoDB databases on one client: `rally_db` (main) and `rally_dashboard` (feedback only), initialized as singletons in `internal/infrastructure/database/database.go`
 - JSON: camelCase, BSON: snake_case. IDs are ObjectID hex strings in responses.
 - Partial updates use pointer fields — nil means "don't update"
-- Required env: `MONGODB_URI`, `MONGODB_DB`, `FIREBASE_CREDENTIALS_PATH`, `CLOUDINARY_URL`
+- Required env: `MONGODB_URI`, `MONGODB_DB`, `FIREBASE_CREDENTIALS_PATH`, `CLOUDINARY_URL`. Optional: `ALLOWED_ORIGINS` (comma-separated CORS origins; defaults to `*` for development — set it in production)
 
 ## Versioning & Releases
 
@@ -89,7 +94,8 @@ Full guide: [`VERSIONING.md`](../VERSIONING.md). Quick rules:
 - Transactions: `session.WithTransaction()` for multi-document operations (e.g. create rally + add owner participant)
 
 ### Middleware Access
-- After auth chain, access via `c.Locals()`: `c.Locals("idToken").(string)`, `c.Locals("user").(*model.User)`, `c.Locals("rallyParticipant").(*model.RallyParticipant)`
+- After auth chain, access via `c.Locals()`: `c.Locals("authToken").(*auth.Token)`, `c.Locals("user").(*model.User)`, `c.Locals("rallyParticipant").(*model.RallyParticipant)`
+- Handlers pass `*model.User` into services; services never see or verify tokens
 - Event/activity routes skip rally middleware — validate access in service via `validateRallyAccess()`
 
 ### DI Pattern

@@ -166,7 +166,7 @@ func (h *InviteLinkHandler) DeactivateInviteLink(c *fiber.Ctx) error {
 // @Failure 401 {object} model.ErrorResponse "Unauthorized"
 // @Router /rallies/join-via-link [post]
 func (h *InviteLinkHandler) JoinViaLink(c *fiber.Ctx) error {
-	idToken := c.Locals("idToken").(string)
+	user := c.Locals("user").(*model.User)
 
 	var req model.JoinViaLinkRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -184,13 +184,9 @@ func (h *InviteLinkHandler) JoinViaLink(c *fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	response, err := h.inviteLinkService.JoinViaLink(ctx, idToken, req.Token)
+	response, err := h.inviteLinkService.JoinViaLink(ctx, user, req.Token)
 	if err != nil {
 		switch err.Error() {
-		case "invalid or expired token", "user not found":
-			return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
-				Message: err.Error(),
-			})
 		case "invalid or expired invite link", "invite link has expired", "invite link has reached its maximum number of uses":
 			return c.Status(fiber.StatusBadRequest).JSON(model.ErrorResponse{
 				Message: err.Error(),
@@ -227,20 +223,16 @@ func (h *InviteLinkHandler) PreviewInviteLink(c *fiber.Ctx) error {
 		})
 	}
 
-	idToken := c.Locals("idToken").(string)
+	user := c.Locals("user").(*model.User)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	response, err := h.inviteLinkService.PreviewInviteLink(ctx, idToken, token)
+	response, err := h.inviteLinkService.PreviewInviteLink(ctx, user, token)
 	if err != nil {
 		log.Printf("[PreviewInviteLink] ERROR for token %s: %v\n", token, err)
 
 		switch err.Error() {
-		case "invalid or expired token", "user not found":
-			return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
-				Message: err.Error(),
-			})
 		case "link is invalid or inactive", "rally not found or inactive", "rally owner not found":
 			return c.Status(fiber.StatusNotFound).JSON(model.ErrorResponse{
 				Message: err.Error(),

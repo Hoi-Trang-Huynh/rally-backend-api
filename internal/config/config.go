@@ -14,8 +14,9 @@ type Config struct {
 }
 
 type ServerConfig struct {
-	Port string
-	Env  string
+	Port           string
+	Env            string
+	AllowedOrigins string
 }
 
 type DatabaseConfig struct {
@@ -47,6 +48,8 @@ func Load() *Config {
 		Server: ServerConfig{
 			Port: getEnv("PORT", "8080"),
 			Env:  getEnv("ENV", "development"),
+			// Comma-separated list of origins allowed by CORS; "*" (default) for development only
+			AllowedOrigins: getEnv("ALLOWED_ORIGINS", "*"),
 		},
 		Database: DatabaseConfig{
 			MONGODB_URI:         getEnv("MONGODB_URI", ""),

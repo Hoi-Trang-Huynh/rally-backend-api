@@ -72,7 +72,9 @@ func (h *UserHandler) GetProfile(c *fiber.Ctx) error {
 // @Success 200 {object} model.ProfileResponse
 // @Failure 400 {object} model.ErrorResponse "Invalid request or user ID"
 // @Failure 401 {object} model.ErrorResponse "Unauthorized"
+// @Failure 403 {object} model.ErrorResponse "Cannot modify another user's profile"
 // @Failure 404 {object} model.ErrorResponse "User not found"
+// @Failure 409 {object} model.ErrorResponse "Username is already taken"
 // @Router /users/{id}/profile [put]
 func (h *UserHandler) UpdateProfile(c *fiber.Ctx) error {
 	userID := c.Params("id")
@@ -82,7 +84,12 @@ func (h *UserHandler) UpdateProfile(c *fiber.Ctx) error {
 		})
 	}
 
-	idToken := c.Locals("idToken").(string)
+	currentUser := c.Locals("user").(*model.User)
+	if currentUser.ID.Hex() != userID {
+		return c.Status(fiber.StatusForbidden).JSON(model.ErrorResponse{
+			Message: "unauthorized: cannot modify another user's profile",
+		})
+	}
 
 	var req model.ProfileUpdateRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -94,27 +101,22 @@ func (h *UserHandler) UpdateProfile(c *fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	if err := h.userService.ValidateUserOwnership(ctx, idToken, userID); err != nil {
-		if err.Error() == "unauthorized: cannot modify another user's profile" {
-			return c.Status(fiber.StatusForbidden).JSON(model.ErrorResponse{
-				Message: err.Error(),
-			})
-		}
-		return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
-			Message: err.Error(),
-		})
-	}
-
 	updatedUser, err := h.userService.UpdateUserProfile(ctx, userID, &req)
 	if err != nil {
-		if err.Error() == "user not found" {
+		switch err.Error() {
+		case "user not found":
 			return c.Status(fiber.StatusNotFound).JSON(model.ErrorResponse{
 				Message: "User not found",
 			})
+		case "username is already taken":
+			return c.Status(fiber.StatusConflict).JSON(model.ErrorResponse{
+				Message: err.Error(),
+			})
+		default:
+			return c.Status(fiber.StatusInternalServerError).JSON(model.ErrorResponse{
+				Message: "Failed to update user profile",
+			})
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(model.ErrorResponse{
-			Message: "Failed to update user profile",
-		})
 	}
 
 	profile := h.userService.ConvertToProfileResponse(updatedUser)
@@ -134,22 +136,7 @@ func (h *UserHandler) UpdateProfile(c *fiber.Ctx) error {
 // @Failure 404 {object} model.ErrorResponse "User not found"
 // @Router /users/me/profile [get]
 func (h *UserHandler) GetMyProfile(c *fiber.Ctx) error {
-	idToken := c.Locals("idToken").(string)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	user, err := h.userService.GetUserProfileByToken(ctx, idToken)
-	if err != nil {
-		if err.Error() == "user not found" {
-			return c.Status(fiber.StatusNotFound).JSON(model.ErrorResponse{
-				Message: "User not found",
-			})
-		}
-		return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
-			Message: err.Error(),
-		})
-	}
+	user := c.Locals("user").(*model.User)
 
 	profile := h.userService.ConvertToProfileResponse(user)
 	return c.Status(fiber.StatusOK).JSON(profile)
@@ -168,22 +155,7 @@ func (h *UserHandler) GetMyProfile(c *fiber.Ctx) error {
 // @Failure 404 {object} model.ErrorResponse "User not found"
 // @Router /user/me/profile/details [get]
 func (h *UserHandler) GetMyProfileDetails(c *fiber.Ctx) error {
-	idToken := c.Locals("idToken").(string)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	user, err := h.userService.GetUserProfileByToken(ctx, idToken)
-	if err != nil {
-		if err.Error() == "user not found" {
-			return c.Status(fiber.StatusNotFound).JSON(model.ErrorResponse{
-				Message: "User not found",
-			})
-		}
-		return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
-			Message: err.Error(),
-		})
-	}
+	user := c.Locals("user").(*model.User)
 
 	details := h.userService.ConvertToProfileDetailsResponse(user)
 	return c.Status(fiber.StatusOK).JSON(details)

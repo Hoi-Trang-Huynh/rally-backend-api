@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"firebase.google.com/go/v4/auth"
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/model"
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/repository"
 	"github.com/google/uuid"
@@ -14,7 +13,6 @@ import (
 )
 
 type InviteLinkService struct {
-	firebaseAuth    *auth.Client
 	inviteLinkRepo  repository.InviteLinkRepository
 	participantRepo repository.RallyParticipantRepository
 	rallyRepo       repository.RallyRepository
@@ -24,7 +22,6 @@ type InviteLinkService struct {
 
 // NewInviteLinkService initializes a new InviteLinkService
 func NewInviteLinkService(
-	firebaseAuth *auth.Client,
 	inviteLinkRepo repository.InviteLinkRepository,
 	participantRepo repository.RallyParticipantRepository,
 	rallyRepo repository.RallyRepository,
@@ -32,7 +29,6 @@ func NewInviteLinkService(
 	eventRepo repository.EventRepository,
 ) *InviteLinkService {
 	return &InviteLinkService{
-		firebaseAuth:    firebaseAuth,
 		inviteLinkRepo:  inviteLinkRepo,
 		participantRepo: participantRepo,
 		rallyRepo:       rallyRepo,
@@ -146,12 +142,7 @@ func (s *InviteLinkService) DeactivateInviteLink(ctx context.Context, rallyID st
 }
 
 // PreviewInviteLink gets details about an invitation link for a preview card
-func (s *InviteLinkService) PreviewInviteLink(ctx context.Context, idToken string, token string) (*model.InviteLinkPreviewResponse, error) {
-	user, err := authenticateUser(ctx, s.firebaseAuth, s.userRepo, idToken)
-	if err != nil {
-		return nil, err
-	}
-
+func (s *InviteLinkService) PreviewInviteLink(ctx context.Context, user *model.User, token string) (*model.InviteLinkPreviewResponse, error) {
 	link, err := s.inviteLinkRepo.GetInviteLinkByToken(ctx, token)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get link: %w", err)
@@ -245,12 +236,7 @@ func (s *InviteLinkService) PreviewInviteLink(ctx context.Context, idToken strin
 // JoinViaLink allows a user to accept an invite link and join a rally directly.
 // This is called when the user taps "Accept" on the invite preview screen.
 // It creates or updates the participant record with "joined" status and increments link usage.
-func (s *InviteLinkService) JoinViaLink(ctx context.Context, idToken string, token string) (*model.JoinViaLinkResponse, error) {
-	user, err := authenticateUser(ctx, s.firebaseAuth, s.userRepo, idToken)
-	if err != nil {
-		return nil, err
-	}
-
+func (s *InviteLinkService) JoinViaLink(ctx context.Context, user *model.User, token string) (*model.JoinViaLinkResponse, error) {
 	// Find the link
 	link, err := s.inviteLinkRepo.GetInviteLinkByToken(ctx, token)
 	if err != nil {

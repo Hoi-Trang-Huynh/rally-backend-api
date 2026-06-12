@@ -41,7 +41,7 @@ type VerifyAvatarRequest struct {
 // @Failure 500 {object} model.ErrorResponse
 // @Router /media/verify-avatar [post]
 func (h *MediaHandler) VerifyAvatar(c *fiber.Ctx) error {
-	idToken := c.Locals("idToken").(string)
+	user := c.Locals("user").(*model.User)
 
 	var req VerifyAvatarRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -59,18 +59,11 @@ func (h *MediaHandler) VerifyAvatar(c *fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	user, err := h.userService.GetUserProfileByToken(ctx, idToken)
-	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
-			Message: "Invalid token or user not found",
-		})
-	}
-
 	updateReq := &model.ProfileUpdateRequest{
 		AvatarUrl: &req.AvatarUrl,
 	}
 
-	_, err = h.userService.UpdateUserProfile(ctx, user.ID.Hex(), updateReq)
+	_, err := h.userService.UpdateUserProfile(ctx, user.ID.Hex(), updateReq)
 	if err != nil {
 		delCtx, delCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer delCancel()

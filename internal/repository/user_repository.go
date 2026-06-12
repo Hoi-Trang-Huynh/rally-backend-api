@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/model"
@@ -15,7 +16,7 @@ import (
 type UserRepository interface {
 	GetUserByFirebaseUID(ctx context.Context, firebaseUID string) (*model.User, error)
 	GetUserByID(ctx context.Context, userID string) (*model.User, error)
-	CreateUser(ctx context.Context, user *model.User) error
+	EnsureUser(ctx context.Context, info model.FirebaseUserInfo) (*model.User, error)
 	UpdateUserProfile(ctx context.Context, userID string, updates *model.ProfileUpdateRequest) (*model.User, error)
 	ExistsEmail(ctx context.Context, email string) (bool, error)
 	ExistsUsername(ctx context.Context, username string) (bool, error)
@@ -71,23 +72,92 @@ func (r *userRepository) GetUserByID(ctx context.Context, userID string) (*model
 	return &user, nil
 }
 
-// CreateUser inserts a new user document
-func (r *userRepository) CreateUser(ctx context.Context, user *model.User) error {
-	// Generate new MongoDB ObjectID if not set
-	if user.ID.IsZero() {
-		user.ID = primitive.NewObjectID()
+// EnsureUser returns the user matching the verified Firebase identity,
+// provisioning it just-in-time on first sight. The email and email_verified
+// claims are kept in sync with MongoDB since Firebase is their source of
+// truth. The upsert is keyed on the unique firebase_uid index, so concurrent
+// first requests cannot create duplicate users.
+func (r *userRepository) EnsureUser(ctx context.Context, info model.FirebaseUserInfo) (*model.User, error) {
+	// Fast path: no write when the user exists and the identity claims match.
+	existing, err := r.GetUserByFirebaseUID(ctx, info.UID)
+	if err != nil {
+		return nil, err
+	}
+	if existing != nil && existing.Email == info.Email && existing.IsEmailVerified == info.EmailVerified {
+		return existing, nil
 	}
 
-	// Set timestamps if not already set
+	firstName, lastName := splitDisplayName(info.DisplayName)
 	now := time.Now()
-	if user.CreatedAt.IsZero() {
-		user.CreatedAt = now
-	}
-	if user.UpdatedAt.IsZero() {
-		user.UpdatedAt = now
+
+	update := bson.M{
+		"$set": bson.M{
+			"email":             info.Email,
+			"is_email_verified": info.EmailVerified,
+			"updated_at":        now,
+		},
+		"$setOnInsert": bson.M{
+			"_id":             primitive.NewObjectID(),
+			"firebase_uid":    info.UID,
+			"username":        "",
+			"first_name":      firstName,
+			"last_name":       lastName,
+			"avatar_url":      info.PictureURL,
+			"bio_text":        "",
+			"phone_number":    "",
+			"created_at":      now,
+			"is_active":       true,
+			"is_onboarding":   true,
+			"followers_count": 0,
+			"following_count": 0,
+		},
 	}
 
-	_, err := r.collection.InsertOne(ctx, user)
+	var user model.User
+	err = r.collection.FindOneAndUpdate(
+		ctx,
+		bson.M{"firebase_uid": info.UID},
+		update,
+		options.FindOneAndUpdate().SetUpsert(true).SetReturnDocument(options.After),
+	).Decode(&user)
+	if err != nil {
+		return nil, err
+	}
+
+	return &user, nil
+}
+
+// splitDisplayName splits a Firebase display name ("Jane van Dame") into
+// first ("Jane") and last ("van Dame") name parts for initial provisioning.
+func splitDisplayName(displayName string) (string, string) {
+	name := strings.TrimSpace(displayName)
+	if name == "" {
+		return "", ""
+	}
+	parts := strings.SplitN(name, " ", 2)
+	if len(parts) == 1 {
+		return parts[0], ""
+	}
+	return parts[0], strings.TrimSpace(parts[1])
+}
+
+// EnsureUserIndexes creates the indexes the auth flow relies on:
+//   - unique firebase_uid, which makes JIT provisioning race-free
+//   - unique username for non-empty values, closing the check-then-set race
+//     on username selection
+func EnsureUserIndexes(ctx context.Context, db *mongo.Database) error {
+	_, err := db.Collection("users").Indexes().CreateMany(ctx, []mongo.IndexModel{
+		{
+			Keys:    bson.D{{Key: "firebase_uid", Value: 1}},
+			Options: options.Index().SetUnique(true),
+		},
+		{
+			Keys: bson.D{{Key: "username", Value: 1}},
+			Options: options.Index().
+				SetUnique(true).
+				SetPartialFilterExpression(bson.M{"username": bson.M{"$gt": ""}}),
+		},
+	})
 	return err
 }
 
@@ -122,12 +192,6 @@ func (r *userRepository) UpdateUserProfile(ctx context.Context, userID string, u
 	}
 	if updates.PhoneNumber != nil {
 		updateDoc["phone_number"] = *updates.PhoneNumber
-	}
-	if updates.IsActive != nil {
-		updateDoc["is_active"] = *updates.IsActive
-	}
-	if updates.IsEmailVerified != nil {
-		updateDoc["is_email_verified"] = *updates.IsEmailVerified
 	}
 	if updates.IsOnboarding != nil {
 		updateDoc["is_onboarding"] = *updates.IsOnboarding

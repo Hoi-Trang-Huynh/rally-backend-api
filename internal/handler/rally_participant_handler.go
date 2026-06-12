@@ -148,23 +148,16 @@ func (h *RallyParticipantHandler) UpdateParticipant(c *fiber.Ctx) error {
 // @Failure 401 {object} model.ErrorResponse "Unauthorized"
 // @Router /user/me/invitations [get]
 func (h *RallyParticipantHandler) GetPendingInvitations(c *fiber.Ctx) error {
-	idToken := c.Locals("idToken").(string)
+	user := c.Locals("user").(*model.User)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	response, err := h.participantService.GetPendingInvitations(ctx, idToken)
+	response, err := h.participantService.GetPendingInvitations(ctx, user)
 	if err != nil {
-		switch err.Error() {
-		case "invalid or expired token", "user not found":
-			return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
-				Message: err.Error(),
-			})
-		default:
-			return c.Status(fiber.StatusInternalServerError).JSON(model.ErrorResponse{
-				Message: "Failed to get pending invitations",
-			})
-		}
+		return c.Status(fiber.StatusInternalServerError).JSON(model.ErrorResponse{
+			Message: "Failed to get pending invitations",
+		})
 	}
 
 	return c.Status(fiber.StatusOK).JSON(response)

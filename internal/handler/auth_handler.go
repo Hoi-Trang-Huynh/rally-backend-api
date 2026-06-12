@@ -34,42 +34,41 @@ func convertToUserResponse(user *model.User) *model.UserResponse {
 	}
 }
 
-// RegisterOrLogin godoc
+// Register godoc
 // @Summary Register or login a user via Firebase
-// @Description Accepts a Firebase ID token and returns user info (registers if new)
+// @Description Idempotent: the user is provisioned from the verified Firebase token in the Authorization header; the optional body sets initial profile fields in the same request.
 // @Tags Authentication
 // @ID registerOrLogin
 // @Accept json
 // @Produce json
-// @Param request body model.FirebaseAuthRequest true "Firebase authentication payload"
+// @Param Authorization header string true "Bearer Firebase ID Token"
+// @Param request body model.RegisterRequest false "Optional initial profile fields"
 // @Success 200 {object} model.RegisterResponse
-// @Failure 400 {object} model.ErrorResponse "Invalid or expired token"
+// @Failure 400 {object} model.ErrorResponse "Invalid request payload"
+// @Failure 401 {object} model.ErrorResponse "Invalid or expired token"
+// @Failure 409 {object} model.ErrorResponse "Username is already taken"
 // @Router /auth/register [post]
-func (h *AuthHandler) RegisterOrLogin(c *fiber.Ctx) error {
-	var req model.FirebaseAuthRequest
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(model.ErrorResponse{
-			Message: "Invalid request payload",
-		})
+func (h *AuthHandler) Register(c *fiber.Ctx) error {
+	user := c.Locals("user").(*model.User)
+
+	// The body is optional; legacy clients may post other fields (ignored).
+	var req model.RegisterRequest
+	if len(c.Body()) > 0 {
+		if err := c.BodyParser(&req); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(model.ErrorResponse{
+				Message: "Invalid request payload",
+			})
+		}
 	}
 
-	// Validate token is not empty
-	if req.IDToken == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(model.ErrorResponse{
-			Message: "Firebase ID token is required",
-		})
-	}
-
-	// Create context with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Verify Firebase token and get/create user
-	user, err := h.authService.RegisterOrLogin(ctx, req.IDToken)
+	user, err := h.authService.CompleteRegistration(ctx, user, &req)
 	if err != nil {
 		switch err.Error() {
-		case "invalid or expired Firebase token", "email not found in token claims":
-			return c.Status(fiber.StatusBadRequest).JSON(model.ErrorResponse{
+		case "username is already taken":
+			return c.Status(fiber.StatusConflict).JSON(model.ErrorResponse{
 				Message: err.Error(),
 			})
 		default:
@@ -86,57 +85,6 @@ func (h *AuthHandler) RegisterOrLogin(c *fiber.Ctx) error {
 
 	return c.Status(fiber.StatusOK).JSON(model.RegisterResponse{
 		Message: message,
-		User:    convertToUserResponse(user),
-	})
-}
-
-// Login godoc
-// @Summary Login a user via Firebase
-// @Description Accepts a Firebase ID token and returns user info
-// @Tags Authentication
-// @ID login
-// @Accept json
-// @Produce json
-// @Param request body model.FirebaseAuthRequest true "Firebase authentication payload"
-// @Success 200 {object} model.LoginResponse
-// @Failure 400 {object} model.ErrorResponse "Invalid or expired token"
-// @Router /auth/login [post]
-func (h *AuthHandler) Login(c *fiber.Ctx) error {
-	var req model.FirebaseAuthRequest
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(model.ErrorResponse{
-			Message: "Invalid request payload",
-		})
-	}
-
-	// Validate token
-	if req.IDToken == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(model.ErrorResponse{
-			Message: "Firebase ID token is required",
-		})
-	}
-
-	// Create context with timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	// Verify token
-	user, err := h.authService.Login(ctx, req.IDToken)
-	if err != nil {
-		switch err.Error() {
-		case "invalid or expired Firebase token", "user not found":
-			return c.Status(fiber.StatusBadRequest).JSON(model.ErrorResponse{
-				Message: err.Error(),
-			})
-		default:
-			return c.Status(fiber.StatusInternalServerError).JSON(model.ErrorResponse{
-				Message: "Failed to login",
-			})
-		}
-	}
-
-	return c.Status(fiber.StatusOK).JSON(model.LoginResponse{
-		Message: "User logged in successfully",
 		User:    convertToUserResponse(user),
 	})
 }

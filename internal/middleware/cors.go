@@ -5,15 +5,19 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/cors"
 )
 
-func CORS() fiber.Handler {
+// CORS restricts cross-origin requests to the configured origins.
+// allowOrigins is a comma-separated list (e.g. "https://app.rally.dev,https://dashboard.rally.dev");
+// it defaults to "*" for local development when unset.
+func CORS(allowOrigins string) fiber.Handler {
+	if allowOrigins == "" {
+		allowOrigins = "*"
+	}
+
 	return cors.New(cors.Config{
-		AllowOrigins:     "*", // Allow all origins (change in prod)
-		AllowMethods:     "GET,POST,PUT,DELETE,OPTIONS",
+		AllowOrigins:     allowOrigins,
+		AllowMethods:     "GET,POST,PUT,PATCH,DELETE,OPTIONS",
 		AllowHeaders:     "Origin, Content-Type, Accept, Authorization",
-		ExposeHeaders:    "Content-Length, Authorization",
+		ExposeHeaders:    "Content-Length",
 		AllowCredentials: false,
 	})
 }
-
-// Note: In production, we should restrict AllowOrigins to specific domains for security reasons.
-// The above configuration allows all origins, which is suitable for development but should be limited in production environments.

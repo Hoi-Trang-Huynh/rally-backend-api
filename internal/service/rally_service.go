@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"firebase.google.com/go/v4/auth"
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/model"
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/repository"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -15,7 +14,6 @@ import (
 
 type RallyService struct {
 	db              *mongo.Database
-	firebaseAuth    *auth.Client
 	rallyRepo       repository.RallyRepository
 	participantRepo repository.RallyParticipantRepository
 	userRepo        repository.UserRepository
@@ -23,14 +21,12 @@ type RallyService struct {
 
 func NewRallyService(
 	db *mongo.Database,
-	firebaseAuth *auth.Client,
 	rallyRepo repository.RallyRepository,
 	participantRepo repository.RallyParticipantRepository,
 	userRepo repository.UserRepository,
 ) *RallyService {
 	return &RallyService{
 		db:              db,
-		firebaseAuth:    firebaseAuth,
 		rallyRepo:       rallyRepo,
 		participantRepo: participantRepo,
 		userRepo:        userRepo,
@@ -154,14 +150,9 @@ func (s *RallyService) UpdateRally(ctx context.Context, rallyID string, req *mod
 	return s.ConvertToRallyResponse(updated), nil
 }
 
-// GetRalliesList retrieves a filtered and sorted list of rallies for a specific user with pagination
-func (s *RallyService) GetRalliesList(ctx context.Context, idToken string, userID string, nameFilter string, statusFilter string, sortOrder string, page int, pageSize int) (*model.RalliesListResponse, error) {
-	// Authenticate the requesting user
-	_, err := authenticateUser(ctx, s.firebaseAuth, s.userRepo, idToken)
-	if err != nil {
-		return nil, err
-	}
-
+// GetRalliesList retrieves a filtered and sorted list of rallies for a specific user with pagination.
+// Authentication is enforced by the middleware chain.
+func (s *RallyService) GetRalliesList(ctx context.Context, userID string, nameFilter string, statusFilter string, sortOrder string, page int, pageSize int) (*model.RalliesListResponse, error) {
 	// Convert userID to ObjectID
 	userObjectID, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {

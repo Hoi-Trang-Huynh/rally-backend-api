@@ -11,13 +11,15 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-// ResolveFirebaseUser verifies the Firebase ID token from c.Locals("idToken")
-// and loads the corresponding user from the database.
+// ResolveFirebaseUser loads the user matching the verified Firebase token in
+// c.Locals("authToken"). The user is provisioned on first sight (JIT) and the
+// email/email_verified claims are kept in sync with MongoDB.
 // On success, stores the *model.User in c.Locals("user").
-func ResolveFirebaseUser(firebaseAuth *auth.Client, userRepo repository.UserRepository) fiber.Handler {
+// Must be chained AFTER AuthRequired.
+func ResolveFirebaseUser(userRepo repository.UserRepository) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		idToken, ok := c.Locals("idToken").(string)
-		if !ok || idToken == "" {
+		token, ok := c.Locals("authToken").(*auth.Token)
+		if !ok || token == nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
 				Message: "Authorization token is required",
 			})
@@ -26,17 +28,10 @@ func ResolveFirebaseUser(firebaseAuth *auth.Client, userRepo repository.UserRepo
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		token, err := firebaseAuth.VerifyIDToken(ctx, idToken)
-		if err != nil {
-			return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
-				Message: "Invalid or expired token",
-			})
-		}
-
-		user, err := userRepo.GetUserByFirebaseUID(ctx, token.UID)
+		user, err := userRepo.EnsureUser(ctx, firebaseUserInfoFromToken(token))
 		if err != nil || user == nil {
-			return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
-				Message: "User not found",
+			return c.Status(fiber.StatusInternalServerError).JSON(model.ErrorResponse{
+				Message: "Failed to resolve user",
 			})
 		}
 

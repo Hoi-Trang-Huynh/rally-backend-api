@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	"firebase.google.com/go/v4/auth"
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/model"
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/repository"
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/utils"
@@ -13,7 +12,6 @@ import (
 )
 
 type RallyParticipantService struct {
-	firebaseAuth    *auth.Client
 	participantRepo repository.RallyParticipantRepository
 	rallyRepo       repository.RallyRepository
 	userRepo        repository.UserRepository
@@ -21,14 +19,12 @@ type RallyParticipantService struct {
 }
 
 func NewRallyParticipantService(
-	firebaseAuth *auth.Client,
 	participantRepo repository.RallyParticipantRepository,
 	rallyRepo repository.RallyRepository,
 	userRepo repository.UserRepository,
 	followRepo repository.FollowRepository,
 ) *RallyParticipantService {
 	return &RallyParticipantService{
-		firebaseAuth:    firebaseAuth,
 		participantRepo: participantRepo,
 		rallyRepo:       rallyRepo,
 		userRepo:        userRepo,
@@ -179,14 +175,9 @@ func (s *RallyParticipantService) GetParticipantsList(ctx context.Context, rally
 	}, nil
 }
 
-// GetPendingInvitations retrieves all pending ("invited" status) invitations for the authenticated user.
+// GetPendingInvitations retrieves all pending ("invited" status) invitations for the current user.
 // TODO: This is a temporary endpoint until realtime notifications are implemented.
-func (s *RallyParticipantService) GetPendingInvitations(ctx context.Context, idToken string) (*model.PendingInvitationsResponse, error) {
-	user, err := authenticateUser(ctx, s.firebaseAuth, s.userRepo, idToken)
-	if err != nil {
-		return nil, err
-	}
-
+func (s *RallyParticipantService) GetPendingInvitations(ctx context.Context, user *model.User) (*model.PendingInvitationsResponse, error) {
 	items, err := s.participantRepo.GetPendingInvitations(ctx, user.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get pending invitations: %w", err)

@@ -136,8 +136,6 @@ func (h *RallyHandler) GetRalliesList(c *fiber.Ctx) error {
 		})
 	}
 
-	idToken := c.Locals("idToken").(string)
-
 	nameFilter := c.Query("name", "")
 	statusFilter := c.Query("status", "")
 	sortOrder := c.Query("sort", "asc")
@@ -163,13 +161,9 @@ func (h *RallyHandler) GetRalliesList(c *fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	response, err := h.rallyService.GetRalliesList(ctx, idToken, userID, nameFilter, statusFilter, sortOrder, page, pageSize)
+	response, err := h.rallyService.GetRalliesList(ctx, userID, nameFilter, statusFilter, sortOrder, page, pageSize)
 	if err != nil {
 		switch err.Error() {
-		case "invalid or expired token":
-			return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
-				Message: err.Error(),
-			})
 		case "user not found", "invalid user ID":
 			return c.Status(fiber.StatusNotFound).JSON(model.ErrorResponse{
 				Message: err.Error(),
