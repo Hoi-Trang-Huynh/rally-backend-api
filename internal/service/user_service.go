@@ -5,21 +5,19 @@ import (
 	"errors"
 	"fmt"
 
-	"firebase.google.com/go/v4/auth"
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/model"
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/repository"
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/utils"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 type UserService struct {
-	firebaseAuth *auth.Client
-	userRepo     repository.UserRepository
+	userRepo repository.UserRepository
 }
 
-func NewUserService(firebaseAuth *auth.Client, userRepo repository.UserRepository) *UserService {
+func NewUserService(userRepo repository.UserRepository) *UserService {
 	return &UserService{
-		firebaseAuth: firebaseAuth,
-		userRepo:     userRepo,
+		userRepo: userRepo,
 	}
 }
 
@@ -31,16 +29,6 @@ func (s *UserService) GetUserProfile(ctx context.Context, userID string) (*model
 	}
 	if user == nil {
 		return nil, errors.New("user not found")
-	}
-	return user, nil
-}
-
-// GetUserProfileByToken retrieves user profile by Firebase ID token
-func (s *UserService) GetUserProfileByToken(ctx context.Context, idToken string) (*model.User, error) {
-	// Since we have helper, use it
-	user, err := authenticateUser(ctx, s.firebaseAuth, s.userRepo, idToken)
-	if err != nil {
-		return nil, err
 	}
 	return user, nil
 }
@@ -59,26 +47,13 @@ func (s *UserService) UpdateUserProfile(ctx context.Context, userID string, upda
 	// Update the profile
 	updatedUser, err := s.userRepo.UpdateUserProfile(ctx, userID, updates)
 	if err != nil {
+		if mongo.IsDuplicateKeyError(err) {
+			return nil, errors.New("username is already taken")
+		}
 		return nil, fmt.Errorf("failed to update user profile: %w", err)
 	}
 
 	return updatedUser, nil
-}
-
-// ValidateUserOwnership validates that the Firebase token belongs to the user being modified
-func (s *UserService) ValidateUserOwnership(ctx context.Context, idToken, userID string) error {
-	// Use helper
-	user, err := authenticateUser(ctx, s.firebaseAuth, s.userRepo, idToken)
-	if err != nil {
-		return err
-	}
-
-	// Check if the user ID matches (convert ObjectID to string for comparison)
-	if user.ID.Hex() != userID {
-		return errors.New("unauthorized: cannot modify another user's profile")
-	}
-
-	return nil
 }
 
 // ConvertToProfileResponse converts User model to ProfileResponse (for syncing)

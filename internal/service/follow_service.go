@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	"firebase.google.com/go/v4/auth"
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/model"
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/repository"
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/utils"
@@ -13,27 +12,19 @@ import (
 )
 
 type FollowService struct {
-	firebaseAuth *auth.Client
-	followRepo   repository.FollowRepository
-	userRepo     repository.UserRepository
+	followRepo repository.FollowRepository
+	userRepo   repository.UserRepository
 }
 
-func NewFollowService(firebaseAuth *auth.Client, followRepo repository.FollowRepository, userRepo repository.UserRepository) *FollowService {
+func NewFollowService(followRepo repository.FollowRepository, userRepo repository.UserRepository) *FollowService {
 	return &FollowService{
-		firebaseAuth: firebaseAuth,
-		followRepo:   followRepo,
-		userRepo:     userRepo,
+		followRepo: followRepo,
+		userRepo:   userRepo,
 	}
 }
 
-// FollowUser creates a follow relationship between the authenticated user and target user
-func (s *FollowService) FollowUser(ctx context.Context, idToken string, targetUserID string) (*model.FollowResponse, error) {
-	// Verify Firebase token to get current user
-	currentUser, err := authenticateUser(ctx, s.firebaseAuth, s.userRepo, idToken)
-	if err != nil {
-		return nil, err
-	}
-
+// FollowUser creates a follow relationship between the current user and target user
+func (s *FollowService) FollowUser(ctx context.Context, currentUser *model.User, targetUserID string) (*model.FollowResponse, error) {
 	// Convert target user ID to ObjectID
 	targetObjID, err := primitive.ObjectIDFromHex(targetUserID)
 	if err != nil {
@@ -90,14 +81,8 @@ func (s *FollowService) FollowUser(ctx context.Context, idToken string, targetUs
 	}, nil
 }
 
-// UnfollowUser removes a follow relationship between the authenticated user and target user
-func (s *FollowService) UnfollowUser(ctx context.Context, idToken string, targetUserID string) (*model.FollowResponse, error) {
-	// Verify Firebase token to get current user
-	currentUser, err := authenticateUser(ctx, s.firebaseAuth, s.userRepo, idToken)
-	if err != nil {
-		return nil, err
-	}
-
+// UnfollowUser removes a follow relationship between the current user and target user
+func (s *FollowService) UnfollowUser(ctx context.Context, currentUser *model.User, targetUserID string) (*model.FollowResponse, error) {
 	// Convert target user ID to ObjectID
 	targetObjID, err := primitive.ObjectIDFromHex(targetUserID)
 	if err != nil {
@@ -139,14 +124,8 @@ func (s *FollowService) UnfollowUser(ctx context.Context, idToken string, target
 	}, nil
 }
 
-// IsFollowing checks if the authenticated user follows the target user
-func (s *FollowService) IsFollowing(ctx context.Context, idToken string, targetUserID string) (*model.FollowStatusResponse, error) {
-	// Verify Firebase token to get current user
-	currentUser, err := authenticateUser(ctx, s.firebaseAuth, s.userRepo, idToken)
-	if err != nil {
-		return nil, err
-	}
-
+// IsFollowing checks if the current user follows the target user
+func (s *FollowService) IsFollowing(ctx context.Context, currentUser *model.User, targetUserID string) (*model.FollowStatusResponse, error) {
 	// Convert target user ID to ObjectID
 	targetObjID, err := primitive.ObjectIDFromHex(targetUserID)
 	if err != nil {

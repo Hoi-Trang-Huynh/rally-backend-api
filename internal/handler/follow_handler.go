@@ -42,18 +42,14 @@ func (h *FollowHandler) FollowUser(c *fiber.Ctx) error {
 		})
 	}
 
-	idToken := c.Locals("idToken").(string)
+	currentUser := c.Locals("user").(*model.User)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	response, err := h.followService.FollowUser(ctx, idToken, targetUserID)
+	response, err := h.followService.FollowUser(ctx, currentUser, targetUserID)
 	if err != nil {
 		switch err.Error() {
-		case "invalid or expired token", "user not found":
-			return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
-				Message: err.Error(),
-			})
 		case "cannot follow yourself":
 			return c.Status(fiber.StatusBadRequest).JSON(model.ErrorResponse{
 				Message: err.Error(),
@@ -94,23 +90,16 @@ func (h *FollowHandler) UnfollowUser(c *fiber.Ctx) error {
 		})
 	}
 
-	idToken := c.Locals("idToken").(string)
+	currentUser := c.Locals("user").(*model.User)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	response, err := h.followService.UnfollowUser(ctx, idToken, targetUserID)
+	response, err := h.followService.UnfollowUser(ctx, currentUser, targetUserID)
 	if err != nil {
-		switch err.Error() {
-		case "invalid or expired token", "user not found":
-			return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
-				Message: err.Error(),
-			})
-		default:
-			return c.Status(fiber.StatusInternalServerError).JSON(model.ErrorResponse{
-				Message: "Failed to unfollow user",
-			})
-		}
+		return c.Status(fiber.StatusInternalServerError).JSON(model.ErrorResponse{
+			Message: "Failed to unfollow user",
+		})
 	}
 
 	return c.Status(fiber.StatusOK).JSON(response)
@@ -137,23 +126,16 @@ func (h *FollowHandler) GetFollowStatus(c *fiber.Ctx) error {
 		})
 	}
 
-	idToken := c.Locals("idToken").(string)
+	currentUser := c.Locals("user").(*model.User)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	response, err := h.followService.IsFollowing(ctx, idToken, targetUserID)
+	response, err := h.followService.IsFollowing(ctx, currentUser, targetUserID)
 	if err != nil {
-		switch err.Error() {
-		case "invalid or expired token", "user not found":
-			return c.Status(fiber.StatusUnauthorized).JSON(model.ErrorResponse{
-				Message: err.Error(),
-			})
-		default:
-			return c.Status(fiber.StatusInternalServerError).JSON(model.ErrorResponse{
-				Message: "Failed to check follow status",
-			})
-		}
+		return c.Status(fiber.StatusInternalServerError).JSON(model.ErrorResponse{
+			Message: "Failed to check follow status",
+		})
 	}
 
 	return c.Status(fiber.StatusOK).JSON(response)

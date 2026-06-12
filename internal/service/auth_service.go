@@ -5,80 +5,45 @@ import (
 	"errors"
 	"fmt"
 
-	"firebase.google.com/go/v4/auth"
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/model"
 	"github.com/Hoi-Trang-Huynh/rally-backend-api/internal/repository"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 type AuthService struct {
-	firebaseAuth *auth.Client
-	userRepo     repository.UserRepository
+	userRepo repository.UserRepository
 }
 
-func NewAuthService(firebaseAuth *auth.Client, userRepo repository.UserRepository) *AuthService {
+func NewAuthService(userRepo repository.UserRepository) *AuthService {
 	return &AuthService{
-		firebaseAuth: firebaseAuth,
-		userRepo:     userRepo,
+		userRepo: userRepo,
 	}
 }
 
-func (s *AuthService) RegisterOrLogin(ctx context.Context, idToken string) (*model.User, error) {
-	// Verify the Firebase ID token
-	token, err := s.firebaseAuth.VerifyIDToken(ctx, idToken)
+// CompleteRegistration applies the optional initial profile fields to a
+// freshly resolved user. The user itself is provisioned by the auth
+// middleware from the verified Firebase token, so this is idempotent: calling
+// it again for an existing user without profile fields is a no-op login.
+func (s *AuthService) CompleteRegistration(ctx context.Context, user *model.User, req *model.RegisterRequest) (*model.User, error) {
+	if req == nil || (req.Username == nil && req.FirstName == nil && req.LastName == nil) {
+		return user, nil
+	}
+
+	updates := &model.ProfileUpdateRequest{
+		Username:  req.Username,
+		FirstName: req.FirstName,
+		LastName:  req.LastName,
+	}
+
+	updated, err := s.userRepo.UpdateUserProfile(ctx, user.ID.Hex(), updates)
 	if err != nil {
-		return nil, errors.New("invalid or expired Firebase token")
+		if mongo.IsDuplicateKeyError(err) {
+			return nil, errors.New("username is already taken")
+		}
+		return nil, fmt.Errorf("failed to update user profile: %w", err)
 	}
 
-	// Extract email from token
-	email, ok := token.Claims["email"].(string)
-	if !ok || email == "" {
-		return nil, errors.New("email not found in token claims")
-	}
-
-	// Check if user exists
-	existingUser, err := s.userRepo.GetUserByFirebaseUID(ctx, token.UID)
-	if err == nil && existingUser != nil {
-		// User exists, return it
-		return existingUser, nil
-	}
-
-	// User doesn't exist, create new user
-	newUser := &model.User{
-		ID:              primitive.NewObjectID(), // MongoDB will generate this automatically in CreateUser if zero
-		FirebaseUID:     token.UID,
-		Email:           email,
-		IsActive:        true,
-		IsEmailVerified: false,
-		IsOnboarding:    true,
-		FollowersCount:  0,
-		FollowingCount:  0,
-	}
-
-	if err := s.userRepo.CreateUser(ctx, newUser); err != nil {
-		return nil, fmt.Errorf("failed to create user: %w", err)
-	}
-
-	return newUser, nil
-}
-
-func (s *AuthService) Login(ctx context.Context, idToken string) (*model.User, error) {
-	// Verify Firebase token
-	token, err := s.firebaseAuth.VerifyIDToken(ctx, idToken)
-	if err != nil {
-		return nil, errors.New("invalid or expired Firebase token")
-	}
-
-	// Fetch user from DB
-	user, err := s.userRepo.GetUserByFirebaseUID(ctx, token.UID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get user: %w", err)
-	}
-	if user == nil {
-		return nil, fmt.Errorf("user not found")
-	}
-
-	return user, nil
+	return updated, nil
 }
 
 // CheckEmailAvailability checks if an email is available for registration
